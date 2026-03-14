@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "weatherstructuremod",
+  "version": "${version}",
+  "name": "Weather & Structure Mod",
+  "description": "Cycles weather (clear/rain/thunder) every 5–15 minutes and boosts structure spawn rates by ~15%. Works on both server and client.",
+  "authors": [
+    "Mills520"
+  ],
+  "contributors": [
+    "See GitHub repository for full contributor list"
+  ],
+  "contact": {
+    "sources": "https://github.com/Mills520/weather-structure-mod"
+  },
+  "license": "Apache-2.0",
+  "icon": "assets/weatherstructuremod/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.example.weathermod.WeatherStructureMod"
+    ]
+  },
+  "mixins": [
+    "weatherstructuremod.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api": "*",
+    "minecraft": "1.21.11"
+  }
+}
