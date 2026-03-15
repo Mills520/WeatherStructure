@@ -1,0 +1,37 @@
+plugins {
+    id 'net.neoforged.moddev' version "${moddevgradle_version}"
+}
+
+version   = "${mod_version}"
+group     = maven_group
+base { archivesName = "weather-structure-mod-neoforge" }
+
+neoForge {
+    version = "${neoforge_version}"
+
+    mods {
+        weatherstructuremod {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+def targetJava = 21
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release  = targetJava
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(targetJava) }
+    withSourcesJar()
+}
+
+jar {
+    manifest {
+        attributes(["MixinConfigs": "weatherstructuremod-neoforge.mixins.json"])
+    }
+    from("${rootProject.projectDir}/LICENSE") {
+        rename { "${it}_${base.archivesName.get()}" }
+    }
+}

@@ -1,0 +1,6 @@
+// Root project — delegates everything to subprojects.
+// Run:  ./gradlew build
+// Outputs:
+//   fabric/build/libs/weather-structure-mod-fabric-1.0.0.jar
+//   neoforge/build/libs/weather-structure-mod-neoforge-1.0.0.jar
+//   paper/build/libs/weather-structure-mod-paper-1.0.0.jar
