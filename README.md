@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Weather & Structure Mod — Fabric 1.21.1
 
 A Fabric mod for Minecraft 1.21.1 that does two things:
@@ -93,3 +94,7 @@ private static final float DENSITY_FACTOR = 0.87f;   // 0.87 = ~15% more
 ## License
 
 MIT — do whatever you like, attribution appreciated.
+=======
+# WeatherStructure
+This is a Minecraft mod that brings I Want Weather back to life with its functionality being merged and it also now will increase chances of structures spawning
+>>>>>>> 07ce76f17d5e78f69041548a887394c1f283139b
