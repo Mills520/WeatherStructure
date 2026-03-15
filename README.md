@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # Weather & Structure Mod — Fabric 1.21.1
 
 A Fabric mod for Minecraft 1.21.1 that does two things:
@@ -12,15 +12,6 @@ A Fabric mod for Minecraft 1.21.1 that does two things:
 Works on **both dedicated servers and clients** (singleplayer).
 
 ---
-
-## Requirements
-
-| Dependency | Version |
-|---|---|
-| Minecraft | 1.21.1 |
-| Fabric Loader | ≥ 0.15.0 |
-| Fabric API | 0.100.8+1.21.1 (or newer) |
-| Java | 21 |
 
 ---
 
@@ -80,21 +71,3 @@ players may also install it client-side with no conflicts.
 There is no config file currently. To change the weather interval or the
 density multiplier, edit the constants in the source and rebuild:
 
-```java
-// WeatherStructureMod.java
-private static final int MIN_TICKS = 5  * 60 * 20;  // 5 min
-private static final int MAX_TICKS = 15 * 60 * 20;  // 15 min
-
-// RandomSpreadStructurePlacementMixin.java
-private static final float DENSITY_FACTOR = 0.87f;   // 0.87 = ~15% more
-```
-
----
-
-## License
-
-MIT — do whatever you like, attribution appreciated.
-=======
-# WeatherStructure
-This is a Minecraft mod that brings I Want Weather back to life with its functionality being merged and it also now will increase chances of structures spawning
->>>>>>> 07ce76f17d5e78f69041548a887394c1f283139b
