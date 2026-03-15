@@ -1,5 +1,5 @@
 
-CHECK MODRINTH FOR EAISER DOWNLOADS: https://modrinth.com/mod/i-want-weather
+CHECK MODRINTH FOR EAISER DOWNLOADS: https://modrinth.com/plugin/weatherstucture
 
 # Weather & Structure Mod — All Platforms 1.21.11
 
