@@ -1,0 +1,8 @@
+name: WeatherStructureMod
+version: '1.0.0'
+main: com.example.weathermod.WeatherStructurePlugin
+api-version: '1.21'
+description: Cycles weather every 5-15 min and boosts structure spawns by ~15%.
+authors: [Mills520]
+website: https://github.com/Mills520/weather-structure-mod
+load: STARTUP

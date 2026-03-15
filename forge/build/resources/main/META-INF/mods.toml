@@ -1,0 +1,29 @@
+modLoader    = "javafml"
+loaderVersion = "[61,)"
+license      = "Apache-2.0"
+
+[[mods]]
+modId       = "weatherstructuremod"
+version     = "1.0.0"
+displayName = "Weather & Structure Mod"
+logoFile    = "assets/weatherstructuremod/icon.png"
+authors     = "Mills520"
+description = '''
+Cycles weather (clear/rain/thunder) every 5-15 minutes and boosts
+structure spawn rates by ~15%. Works on server and client.
+Forge edition for Minecraft 1.21.11.
+'''
+
+[[dependencies.weatherstructuremod]]
+    modId        = "forge"
+    mandatory    = true
+    versionRange = "[61.1,)"
+    ordering     = "NONE"
+    side         = "BOTH"
+
+[[dependencies.weatherstructuremod]]
+    modId        = "minecraft"
+    mandatory    = true
+    versionRange = "[1.21.11,)"
+    ordering     = "NONE"
+    side         = "BOTH"

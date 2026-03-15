@@ -1,0 +1,27 @@
+modLoader    = "javafml"
+loaderVersion = "[4,)"
+license      = "Apache-2.0"
+
+[[mods]]
+modId       = "weatherstructuremod"
+version     = "${file.jarVersion}"
+displayName = "Weather & Structure Mod"
+logoFile    = "assets/weatherstructuremod/icon.png"
+description = '''
+Cycles weather (clear/rain/thunder) every 5-15 minutes and boosts
+structure spawn rates by ~15%. NeoForge edition for Minecraft 1.21.11.
+'''
+
+[[dependencies.weatherstructuremod]]
+    modId        = "neoforge"
+    type         = "required"
+    versionRange = "[21.11,)"
+    ordering     = "NONE"
+    side         = "BOTH"
+
+[[dependencies.weatherstructuremod]]
+    modId        = "minecraft"
+    type         = "required"
+    versionRange = "[1.21.11,)"
+    ordering     = "NONE"
+    side         = "BOTH"

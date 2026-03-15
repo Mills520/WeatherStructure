@@ -1,0 +1,85 @@
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.minecraftforge.net' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "net.minecraftforge.gradle:ForgeGradle:${fg_version}"
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'java'
+
+version   = mod_version
+group     = maven_group
+base { archivesName = 'weather-structure-mod-forge' }
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    withSourcesJar()
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    copyIdeResources = true
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            mods { weatherstructuremod { source sourceSets.main } }
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            mods { weatherstructuremod { source sourceSets.main } }
+        }
+    }
+}
+
+repositories {
+    maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net' }
+    mavenCentral()
+}
+
+dependencies {
+    // Forge provides all needed APIs (including EventBus) via the minecraft configuration
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release  = 21
+}
+
+processResources {
+    var replaceProperties = [
+        minecraft_version: minecraft_version,
+        forge_version    : forge_version,
+        mod_version      : mod_version,
+        mod_id           : mod_id
+    ]
+    inputs.properties replaceProperties
+    filesMatching('META-INF/mods.toml') { expand replaceProperties }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title'   : mod_id,
+            'Specification-Vendor'  : 'Mills520',
+            'Specification-Version' : '1',
+            'Implementation-Title'  : project.name,
+            'Implementation-Version': mod_version,
+            'Implementation-Vendor' : 'Mills520',
+            'MixinConfigs'          : 'weatherstructuremod-forge.mixins.json'
+        ])
+    }
+    from('LICENSE') { rename { "${it}_${base.archivesName.get()}" } }
+    finalizedBy('reobfJar')
+}
