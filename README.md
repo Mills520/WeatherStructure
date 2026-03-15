@@ -1,3 +1,6 @@
+
+CHECK MODRINTH FOR EAISER DOWNLOADS: https://modrinth.com/mod/i-want-weather
+
 # Weather & Structure Mod — All Platforms 1.21.11
 
 One repo, one command, four JARs.
