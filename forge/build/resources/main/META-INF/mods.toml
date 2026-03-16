@@ -4,7 +4,7 @@ license      = "Apache-2.0"
 
 [[mods]]
 modId       = "weatherstructuremod"
-version     = "1.0.0"
+version     = "1.1.0"
 displayName = "Weather & Structure Mod"
 logoFile    = "assets/weatherstructuremod/icon.png"
 authors     = "Mills520"

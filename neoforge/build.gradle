@@ -23,7 +23,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(targetJava) }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
     withSourcesJar()
 }
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "weatherstructuremod",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Weather & Structure Mod",
   "description": "Cycles weather every 5–15 min and boosts structure spawns by ~15%. Fabric edition.",
   "authors": ["Mills520"],

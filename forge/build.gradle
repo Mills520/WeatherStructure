@@ -17,7 +17,8 @@ group     = maven_group
 base { archivesName = 'weather-structure-mod-forge' }
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
     withSourcesJar()
 }
 

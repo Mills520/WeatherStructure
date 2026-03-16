@@ -25,9 +25,9 @@ chmod +x gradlew
 ./gradlew :fabric:build :neoforge:build :paper:build
 
 echo ""
-echo "${GREEN}✔ Fabric:   fabric/build/libs/weather-structure-mod-fabric-1.0.0.jar${NC}"
-echo "${GREEN}✔ NeoForge: neoforge/build/libs/weather-structure-mod-neoforge-1.0.0.jar${NC}"
-echo "${GREEN}✔ Paper:    paper/build/libs/weather-structure-mod-paper-1.0.0.jar${NC}"
+echo "${GREEN}✔ Fabric:   fabric/build/libs/weather-structure-mod-fabric-1.1.0.jar${NC}"
+echo "${GREEN}✔ NeoForge: neoforge/build/libs/weather-structure-mod-neoforge-1.1.0.jar${NC}"
+echo "${GREEN}✔ Paper:    paper/build/libs/weather-structure-mod-paper-1.1.0.jar${NC}"
 echo ""
 
 # ── Step 2: Forge (Gradle 8.8) ────────────────────────────────────────────
@@ -37,7 +37,7 @@ chmod +x gradlew
 ./gradlew build
 
 echo ""
-echo "${GREEN}✔ Forge:    forge/build/libs/weather-structure-mod-forge-1.0.0.jar${NC}"
+echo "${GREEN}✔ Forge:    forge/build/libs/weather-structure-mod-forge-1.1.0.jar${NC}"
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
 echo "║    All 4 JARs built successfully!                ║"

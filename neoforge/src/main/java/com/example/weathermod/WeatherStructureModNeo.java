@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Mod("weatherstructuremod")
 public class WeatherStructureModNeo {
@@ -23,14 +23,16 @@ public class WeatherStructureModNeo {
 
     private enum WeatherType { CLEAR, RAIN, THUNDER }
 
+    // Cache values() array — avoids a new allocation on every weather change
+    private static final WeatherType[] WEATHER_TYPES = WeatherType.values();
+
     private final Map<ResourceKey<Level>, Integer> weatherTimers = new HashMap<>();
-    private final Random random = new Random();
 
     private static final int MIN_TICKS = 5  * 60 * 20;
     private static final int MAX_TICKS = 15 * 60 * 20;
 
     public WeatherStructureModNeo(IEventBus modBus) {
-        LOGGER.info("[WeatherStructureMod] NeoForge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.1.0 — NeoForge — Dynamic Weather & Structure Boost active.");
         NeoForge.EVENT_BUS.addListener(this::onLevelTick);
     }
 
@@ -51,17 +53,18 @@ public class WeatherStructureModNeo {
         int ticksLeft = weatherTimers.get(key) - 1;
         if (ticksLeft <= 0) {
             applyRandomWeather(level);
-            weatherTimers.put(key, randomInterval());
+            int next = randomInterval();
+            weatherTimers.put(key, next);
+            LOGGER.info("[WeatherStructureMod] Next weather change in {} ticks (~{} sec).", next, next / 20);
         } else {
             weatherTimers.put(key, ticksLeft);
         }
     }
 
     private void applyRandomWeather(ServerLevel level) {
-        // getLevelData() returns WritableLevelData; cast to ServerLevelData for full access
         ServerLevelData data = (ServerLevelData) level.getLevelData();
-
-        switch (WeatherType.values()[random.nextInt(3)]) {
+        WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
+        switch (chosen) {
             case CLEAR -> {
                 data.setRaining(false);
                 data.setThundering(false);
@@ -89,7 +92,7 @@ public class WeatherStructureModNeo {
         }
     }
 
-    private int randomInterval() {
-        return MIN_TICKS + random.nextInt(MAX_TICKS - MIN_TICKS + 1);
+    private static int randomInterval() {
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
     }
 }

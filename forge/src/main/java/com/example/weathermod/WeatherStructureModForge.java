@@ -12,16 +12,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Forge 61.x (1.21.11) — EventBus 7 style.
- *
- * EventBus 7 migration notes:
- *  - @SubscribeEvent + @Mod.EventBusSubscriber are GONE — replaced by addListener()
- *  - Register listeners directly on the event's own static .BUS field
- *  - Constructor takes FMLJavaModLoadingContext (injected by Forge 61+)
- *  - No external EventBus dep needed — events expose their own BUS field
+ * Register listeners directly on the event's own static .BUS field.
  */
 @Mod("weatherstructuremod")
 public class WeatherStructureModForge {
@@ -29,22 +24,22 @@ public class WeatherStructureModForge {
     public static final String MOD_ID = "weatherstructuremod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    private enum WeatherType { CLEAR, RAIN, THUNDER }
+
+    // Cache values() array — avoids a new allocation on every weather change
+    private static final WeatherType[] WEATHER_TYPES = WeatherType.values();
+
     private final Map<ResourceKey<Level>, Integer> weatherTimers = new HashMap<>();
-    private final Random random = new Random();
 
     private static final int MIN_TICKS = 5  * 60 * 20;
     private static final int MAX_TICKS = 15 * 60 * 20;
 
-    // Forge 61.x: constructor must take FMLJavaModLoadingContext
     public WeatherStructureModForge(FMLJavaModLoadingContext context) {
-        LOGGER.info("[WeatherStructureMod] Forge — Dynamic Weather & Structure Boost active.");
-
-        // EventBus 7: register directly on the event's static BUS field — no @SubscribeEvent needed
+        LOGGER.info("[WeatherStructureMod] v1.1.0 — Forge — Dynamic Weather & Structure Boost active.");
         TickEvent.LevelTickEvent.Post.BUS.addListener(this::onLevelTick);
     }
 
     private void onLevelTick(TickEvent.LevelTickEvent.Post event) {
-        // LevelTickEvent.Post is a record in EventBus 7 — access level via event.level()
         if (!(event.level() instanceof ServerLevel level)) return;
         if (!level.dimension().equals(Level.OVERWORLD)) return;
 
@@ -60,7 +55,9 @@ public class WeatherStructureModForge {
         int ticksLeft = weatherTimers.get(key) - 1;
         if (ticksLeft <= 0) {
             applyRandomWeather(level);
-            weatherTimers.put(key, randomInterval());
+            int next = randomInterval();
+            weatherTimers.put(key, next);
+            LOGGER.info("[WeatherStructureMod] Next weather change in {} ticks (~{} sec).", next, next / 20);
         } else {
             weatherTimers.put(key, ticksLeft);
         }
@@ -68,8 +65,9 @@ public class WeatherStructureModForge {
 
     private void applyRandomWeather(ServerLevel level) {
         ServerLevelData data = (ServerLevelData) level.getLevelData();
-        switch (random.nextInt(3)) {
-            case 0 -> {
+        WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
+        switch (chosen) {
+            case CLEAR -> {
                 data.setRaining(false);
                 data.setThundering(false);
                 data.setClearWeatherTime(6000);
@@ -77,7 +75,7 @@ public class WeatherStructureModForge {
                 data.setThunderTime(0);
                 LOGGER.info("[WeatherStructureMod] Weather → CLEAR.");
             }
-            case 1 -> {
+            case RAIN -> {
                 data.setRaining(true);
                 data.setThundering(false);
                 data.setClearWeatherTime(0);
@@ -85,7 +83,7 @@ public class WeatherStructureModForge {
                 data.setThunderTime(0);
                 LOGGER.info("[WeatherStructureMod] Weather → RAIN.");
             }
-            case 2 -> {
+            case THUNDER -> {
                 data.setRaining(true);
                 data.setThundering(true);
                 data.setClearWeatherTime(0);
@@ -96,7 +94,7 @@ public class WeatherStructureModForge {
         }
     }
 
-    private int randomInterval() {
-        return MIN_TICKS + random.nextInt(MAX_TICKS - MIN_TICKS + 1);
+    private static int randomInterval() {
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
     }
 }

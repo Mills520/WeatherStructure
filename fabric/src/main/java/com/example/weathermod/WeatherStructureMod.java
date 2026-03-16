@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class WeatherStructureMod implements ModInitializer {
 
@@ -18,16 +18,18 @@ public class WeatherStructureMod implements ModInitializer {
 
     private enum WeatherType { CLEAR, RAIN, THUNDER }
 
+    // Cache values() array — avoids a new allocation on every weather change
+    private static final WeatherType[] WEATHER_TYPES = WeatherType.values();
+
     private final Map<String, Integer> weatherTimers = new HashMap<>();
-    private final Random random = new Random();
 
     // 5–15 minutes in ticks (20 ticks/sec × 60 sec/min)
-    private static final int MIN_TICKS = 5  * 60 * 20;   // 6,000
-    private static final int MAX_TICKS = 15 * 60 * 20;   // 18,000
+    private static final int MIN_TICKS = 5  * 60 * 20;  // 6,000
+    private static final int MAX_TICKS = 15 * 60 * 20;  // 18,000
 
     @Override
     public void onInitialize() {
-        LOGGER.info("[WeatherStructureMod] Fabric — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.1.0 — Fabric — Dynamic Weather & Structure Boost active.");
         ServerTickEvents.END_WORLD_TICK.register(this::onWorldTick);
     }
 
@@ -36,6 +38,7 @@ public class WeatherStructureMod implements ModInitializer {
 
         String key = world.getRegistryKey().getValue().toString();
 
+        // First tick for this world: initialise the countdown and return
         if (!weatherTimers.containsKey(key)) {
             int initial = randomInterval();
             weatherTimers.put(key, initial);
@@ -55,14 +58,16 @@ public class WeatherStructureMod implements ModInitializer {
     }
 
     private void applyRandomWeather(ServerWorld world) {
-        switch (WeatherType.values()[random.nextInt(3)]) {
+        // ThreadLocalRandom — faster than shared Random, no lock contention
+        WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
+        switch (chosen) {
             case CLEAR   -> { world.setWeather(6000, 0,    false, false); LOGGER.info("[WeatherStructureMod] Weather → CLEAR."); }
             case RAIN    -> { world.setWeather(0,    6000, true,  false); LOGGER.info("[WeatherStructureMod] Weather → RAIN."); }
             case THUNDER -> { world.setWeather(0,    6000, true,  true);  LOGGER.info("[WeatherStructureMod] Weather → THUNDER."); }
         }
     }
 
-    private int randomInterval() {
-        return MIN_TICKS + random.nextInt(MAX_TICKS - MIN_TICKS + 1);
+    private static int randomInterval() {
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
     }
 }

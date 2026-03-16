@@ -3,7 +3,7 @@ Specification-Title: weatherstructuremod
 Specification-Vendor: Mills520
 Specification-Version: 1
 Implementation-Title: weather-structure-mod-forge
-Implementation-Version: 1.0.0
+Implementation-Version: 1.1.0
 Implementation-Vendor: Mills520
 MixinConfigs: weatherstructuremod-forge.mixins.json
 
