@@ -133,9 +133,9 @@ if %STEP1_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Fabric:   fabric\build\libs\weather-structure-mod-fabric-1.1.0.jar
-echo [OK] NeoForge: neoforge\build\libs\weather-structure-mod-neoforge-1.1.0.jar
-echo [OK] Paper:    paper\build\libs\weather-structure-mod-paper-1.1.0.jar
+echo [OK] Fabric:   fabric\build\libs\weather-structure-mod-fabric-1.2.0.jar
+echo [OK] NeoForge: neoforge\build\libs\weather-structure-mod-neoforge-1.2.0.jar
+echo [OK] Paper:    paper\build\libs\weather-structure-mod-paper-1.2.0.jar
 echo.
 
 REM ── Step 2: Forge ────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ if %STEP2_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Forge: forge\build\libs\weather-structure-mod-forge-1.1.0.jar
+echo [OK] Forge: forge\build\libs\weather-structure-mod-forge-1.2.0.jar
 echo.
 echo ====================================================
 echo  All 4 JARs built successfully!
