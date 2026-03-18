@@ -17,7 +17,7 @@ import java.util.logging.Logger;
  *
  * Feature 1 — Dynamic Weather Cycling:
  *   Uses the Bukkit scheduler to run a per-world countdown each tick.
- *   Every 5–15 min it randomly switches the Overworld between CLEAR, RAIN, THUNDER.
+ *   Every 30–60 min it randomly switches the Overworld between CLEAR, RAIN, THUNDER.
  *
  * Feature 2 — Structure Spawn Boost (+15%):
  *   Uses reflection to reduce spacing/separation on RandomSpreadStructurePlacement
@@ -25,8 +25,9 @@ import java.util.logging.Logger;
  */
 public class WeatherStructurePlugin extends JavaPlugin {
 
-    private static final int   MIN_TICKS      = 5  * 60 * 20;  // 6,000
-    private static final int   MAX_TICKS      = 15 * 60 * 20;  // 18,000
+    private static final int   MIN_TICKS      = 30 * 60 * 20;  // 36,000
+    private static final int   MAX_TICKS      = 60 * 60 * 20;  // 72,000
+    private static final int   INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
     private static final float DENSITY_FACTOR = 0.87f;
 
     // Cache of overworld-environment worlds — refreshed on each weather tick
@@ -72,12 +73,13 @@ public class WeatherStructurePlugin extends JavaPlugin {
         for (World world : overworldCache) {
             String key = world.getName();
 
-            if (!weatherTimers.containsKey(key)) {
+            Integer timer = weatherTimers.get(key);
+            if (timer == null) {
                 weatherTimers.put(key, randomInterval());
                 continue;
             }
 
-            int ticksLeft = weatherTimers.get(key) - 1;
+            int ticksLeft = timer - 1;
             if (ticksLeft <= 0) {
                 applyRandomWeather(world);
                 weatherTimers.put(key, randomInterval());
@@ -90,30 +92,31 @@ public class WeatherStructurePlugin extends JavaPlugin {
     private void applyRandomWeather(World world) {
         // Uses only standard Bukkit API — compatible with both Spigot and Paper
         switch (ThreadLocalRandom.current().nextInt(3)) {
+            // Use large duration so vanilla MC never overrides before our next cycle
             case 0 -> {  // CLEAR
                 world.setStorm(false);
                 world.setThundering(false);
-                world.setWeatherDuration(6000);
+                world.setWeatherDuration(999_999);
                 getLogger().info("[WSM] '" + world.getName() + "' → CLEAR.");
             }
             case 1 -> {  // RAIN
                 world.setStorm(true);
                 world.setThundering(false);
-                world.setWeatherDuration(6000);
+                world.setWeatherDuration(999_999);
                 getLogger().info("[WSM] '" + world.getName() + "' → RAIN.");
             }
             case 2 -> {  // THUNDER
                 world.setStorm(true);
                 world.setThundering(true);
-                world.setWeatherDuration(6000);
-                world.setThunderDuration(6000);
+                world.setWeatherDuration(999_999);
+                world.setThunderDuration(999_999);
                 getLogger().info("[WSM] '" + world.getName() + "' → THUNDER.");
             }
         }
     }
 
     private static int randomInterval() {
-        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(INTERVAL_RANGE);
     }
 
     // ── Structure density boost ───────────────────────────────────────────
@@ -210,10 +213,15 @@ public class WeatherStructurePlugin extends JavaPlugin {
                     f.setAccessible(true);
                     Object val = f.get(obj);
                     count += reflectiveSweep(val, targetClass, spacingField, separationField, depth + 1, visited);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    // Expected for inaccessible fields — only log at FINE level
+                    getLogger().fine("[WSM] Skipping field: " + f.getName() + " — " + e.getMessage());
+                }
             }
 
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            getLogger().fine("[WSM] Sweep error at depth " + depth + ": " + e.getMessage());
+        }
 
         return count;
     }

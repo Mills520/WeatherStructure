@@ -31,8 +31,10 @@ public class WeatherStructureModForge {
 
     private final Map<ResourceKey<Level>, Integer> weatherTimers = new HashMap<>();
 
-    private static final int MIN_TICKS = 5  * 60 * 20;
-    private static final int MAX_TICKS = 15 * 60 * 20;
+    // 30–60 minutes in ticks (20 ticks/sec × 60 sec/min)
+    private static final int MIN_TICKS      = 30 * 60 * 20;  // 36,000
+    private static final int MAX_TICKS      = 60 * 60 * 20;  // 72,000
+    private static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
 
     public WeatherStructureModForge(FMLJavaModLoadingContext context) {
         LOGGER.info("[WeatherStructureMod] v1.1.0 — Forge — Dynamic Weather & Structure Boost active.");
@@ -45,14 +47,15 @@ public class WeatherStructureModForge {
 
         ResourceKey<Level> key = level.dimension();
 
-        if (!weatherTimers.containsKey(key)) {
+        Integer timer = weatherTimers.get(key);
+        if (timer == null) {
             int initial = randomInterval();
             weatherTimers.put(key, initial);
             LOGGER.info("[WeatherStructureMod] First weather change in {} ticks (~{} sec).", initial, initial / 20);
             return;
         }
 
-        int ticksLeft = weatherTimers.get(key) - 1;
+        int ticksLeft = timer - 1;
         if (ticksLeft <= 0) {
             applyRandomWeather(level);
             int next = randomInterval();
@@ -67,10 +70,11 @@ public class WeatherStructureModForge {
         ServerLevelData data = (ServerLevelData) level.getLevelData();
         WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
         switch (chosen) {
+            // Use large duration so vanilla MC never overrides before our next cycle
             case CLEAR -> {
                 data.setRaining(false);
                 data.setThundering(false);
-                data.setClearWeatherTime(6000);
+                data.setClearWeatherTime(999_999);
                 data.setRainTime(0);
                 data.setThunderTime(0);
                 LOGGER.info("[WeatherStructureMod] Weather → CLEAR.");
@@ -79,7 +83,7 @@ public class WeatherStructureModForge {
                 data.setRaining(true);
                 data.setThundering(false);
                 data.setClearWeatherTime(0);
-                data.setRainTime(6000);
+                data.setRainTime(999_999);
                 data.setThunderTime(0);
                 LOGGER.info("[WeatherStructureMod] Weather → RAIN.");
             }
@@ -87,14 +91,14 @@ public class WeatherStructureModForge {
                 data.setRaining(true);
                 data.setThundering(true);
                 data.setClearWeatherTime(0);
-                data.setRainTime(6000);
-                data.setThunderTime(6000);
+                data.setRainTime(999_999);
+                data.setThunderTime(999_999);
                 LOGGER.info("[WeatherStructureMod] Weather → THUNDER.");
             }
         }
     }
 
     private static int randomInterval() {
-        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(INTERVAL_RANGE);
     }
 }
