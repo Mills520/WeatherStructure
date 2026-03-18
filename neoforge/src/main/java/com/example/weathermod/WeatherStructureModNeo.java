@@ -34,7 +34,7 @@ public class WeatherStructureModNeo {
     private static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
 
     public WeatherStructureModNeo(IEventBus modBus) {
-        LOGGER.info("[WeatherStructureMod] v1.1.0 — NeoForge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.2.0 — NeoForge — Dynamic Weather & Structure Boost active.");
         NeoForge.EVENT_BUS.addListener(this::onLevelTick);
     }
 

@@ -13,7 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
 /**
- * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.1.0
+ * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.2.0
  *
  * Feature 1 — Dynamic Weather Cycling:
  *   Uses the Bukkit scheduler to run a per-world countdown each tick.
@@ -41,7 +41,7 @@ public class WeatherStructurePlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         Logger log = getLogger();
-        log.info("[WSM] Weather & Structure Mod v1.1.0 (Paper) enabling...");
+        log.info("[WSM] Weather & Structure Mod v1.2.0 (Paper) enabling...");
 
         boostStructureDensity();
 

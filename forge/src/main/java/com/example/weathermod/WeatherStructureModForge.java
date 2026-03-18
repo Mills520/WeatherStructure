@@ -37,7 +37,7 @@ public class WeatherStructureModForge {
     private static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
 
     public WeatherStructureModForge(FMLJavaModLoadingContext context) {
-        LOGGER.info("[WeatherStructureMod] v1.1.0 — Forge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.2.0 — Forge — Dynamic Weather & Structure Boost active.");
         TickEvent.LevelTickEvent.Post.BUS.addListener(this::onLevelTick);
     }
 
