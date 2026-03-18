@@ -23,9 +23,10 @@ public class WeatherStructureMod implements ModInitializer {
 
     private final Map<String, Integer> weatherTimers = new HashMap<>();
 
-    // 5–15 minutes in ticks (20 ticks/sec × 60 sec/min)
-    private static final int MIN_TICKS = 5  * 60 * 20;  // 6,000
-    private static final int MAX_TICKS = 15 * 60 * 20;  // 18,000
+    // 30–60 minutes in ticks (20 ticks/sec × 60 sec/min)
+    private static final int MIN_TICKS      = 30 * 60 * 20;  // 36,000
+    private static final int MAX_TICKS      = 60 * 60 * 20;  // 72,000
+    private static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
 
     @Override
     public void onInitialize() {
@@ -39,14 +40,15 @@ public class WeatherStructureMod implements ModInitializer {
         String key = world.getRegistryKey().getValue().toString();
 
         // First tick for this world: initialise the countdown and return
-        if (!weatherTimers.containsKey(key)) {
+        Integer timer = weatherTimers.get(key);
+        if (timer == null) {
             int initial = randomInterval();
             weatherTimers.put(key, initial);
             LOGGER.info("[WeatherStructureMod] First weather change in {} ticks (~{} sec).", initial, initial / 20);
             return;
         }
 
-        int ticksLeft = weatherTimers.get(key) - 1;
+        int ticksLeft = timer - 1;
         if (ticksLeft <= 0) {
             applyRandomWeather(world);
             int next = randomInterval();
@@ -60,14 +62,15 @@ public class WeatherStructureMod implements ModInitializer {
     private void applyRandomWeather(ServerWorld world) {
         // ThreadLocalRandom — faster than shared Random, no lock contention
         WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
+        // Use large duration so vanilla MC never overrides before our next cycle
         switch (chosen) {
-            case CLEAR   -> { world.setWeather(6000, 0,    false, false); LOGGER.info("[WeatherStructureMod] Weather → CLEAR."); }
-            case RAIN    -> { world.setWeather(0,    6000, true,  false); LOGGER.info("[WeatherStructureMod] Weather → RAIN."); }
-            case THUNDER -> { world.setWeather(0,    6000, true,  true);  LOGGER.info("[WeatherStructureMod] Weather → THUNDER."); }
+            case CLEAR   -> { world.setWeather(999_999, 0,       false, false); LOGGER.info("[WeatherStructureMod] Weather → CLEAR."); }
+            case RAIN    -> { world.setWeather(0,       999_999, true,  false); LOGGER.info("[WeatherStructureMod] Weather → RAIN."); }
+            case THUNDER -> { world.setWeather(0,       999_999, true,  true);  LOGGER.info("[WeatherStructureMod] Weather → THUNDER."); }
         }
     }
 
     private static int randomInterval() {
-        return MIN_TICKS + ThreadLocalRandom.current().nextInt(MAX_TICKS - MIN_TICKS + 1);
+        return MIN_TICKS + ThreadLocalRandom.current().nextInt(INTERVAL_RANGE);
     }
 }
