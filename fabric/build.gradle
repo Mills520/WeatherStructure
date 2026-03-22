@@ -8,7 +8,7 @@ base { archivesName = "weather-structure-mod-fabric" }
 
 dependencies {
     minecraft    libs.minecraft
-    mappings     "net.fabricmc:yarn:${libs.versions.yarn.mappings.get()}:v2"
+    mappings     "net.fabricmc:yarn:${yarn_mappings}:v2"
     modImplementation libs.fabric.loader
     modImplementation libs.fabric.api
 
