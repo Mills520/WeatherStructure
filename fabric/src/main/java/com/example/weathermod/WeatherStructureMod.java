@@ -42,7 +42,7 @@ public class WeatherStructureMod implements ModInitializer {
             // /timedweather <type> <seconds>
             dispatcher.register(
                 CommandManager.literal("timedweather")
-                    .requires(CommandManager.GAMEMASTERS_CHECK)
+                    .requires(source -> CommandManager.GAMEMASTERS_CHECK.allows(source.getPermissions()))
                     .then(CommandManager.literal("status")
                         .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
                     )
@@ -66,7 +66,7 @@ public class WeatherStructureMod implements ModInitializer {
             // /weatherforecast
             dispatcher.register(
                 CommandManager.literal("weatherforecast")
-                    .requires(CommandManager.GAMEMASTERS_CHECK)
+                    .requires(source -> CommandManager.GAMEMASTERS_CHECK.allows(source.getPermissions()))
                     .executes(ctx -> executeWeatherForecast(ctx.getSource()))
             );
         });
