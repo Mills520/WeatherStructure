@@ -2,18 +2,22 @@ package com.example.weathermod;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
 /**
- * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.2.0
+ * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.3.0
  *
  * Feature 1 — Dynamic Weather Cycling:
  *   Uses the Bukkit scheduler to run a per-world countdown each tick.
@@ -22,6 +26,9 @@ import java.util.logging.Logger;
  * Feature 2 — Structure Spawn Boost (+15%):
  *   Uses reflection to reduce spacing/separation on RandomSpreadStructurePlacement
  *   objects registered in the server's chunk generator. Runs once at startup.
+ *
+ * Feature 3 — Timed Weather Command (/timedweather):
+ *   Allows operators to set weather for a specified duration. Reverts to CLEAR after.
  */
 public class WeatherStructurePlugin extends JavaPlugin {
 
@@ -38,10 +45,13 @@ public class WeatherStructurePlugin extends JavaPlugin {
 
     private final Map<String, Integer> weatherTimers = new HashMap<>();
 
+    // Timed weather state — when active, pauses normal cycling
+    private int timedWeatherTicks = 0;
+
     @Override
     public void onEnable() {
         Logger log = getLogger();
-        log.info("[WSM] Weather & Structure Mod v1.2.0 (Paper) enabling...");
+        log.info("[WSM] Weather & Structure Mod v1.3.0 (Paper) enabling...");
 
         boostStructureDensity();
 
@@ -57,6 +67,89 @@ public class WeatherStructurePlugin extends JavaPlugin {
         getLogger().info("[WSM] Weather & Structure Mod disabled.");
     }
 
+    // ── Timed Weather Command ─────────────────────────────────────────────
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!command.getName().equalsIgnoreCase("timedweather")) return false;
+
+        if (!sender.hasPermission("weatherstructuremod.timedweather")) {
+            sender.sendMessage("[WSM] You don't have permission to use this command.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage("[WSM] Usage: /timedweather <clear|rain|thunder> <seconds>");
+            return true;
+        }
+
+        String type = args[0].toUpperCase(Locale.ROOT);
+        if (!type.equals("CLEAR") && !type.equals("RAIN") && !type.equals("THUNDER")) {
+            sender.sendMessage("[WSM] Invalid weather type! Use: clear, rain, or thunder.");
+            return true;
+        }
+
+        int seconds;
+        try {
+            seconds = Integer.parseInt(args[1]);
+            if (seconds < 1 || seconds > 86400) {
+                sender.sendMessage("[WSM] Seconds must be between 1 and 86400.");
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            sender.sendMessage("[WSM] Invalid number: " + args[1]);
+            return true;
+        }
+
+        int ticks = seconds * 20;
+
+        // Apply to all overworld worlds
+        for (World world : Bukkit.getWorlds()) {
+            if (world.getEnvironment() != World.Environment.NORMAL) continue;
+            applyWeatherType(world, type, ticks);
+        }
+
+        timedWeatherTicks = ticks;
+        sender.sendMessage("[WSM] Weather set to " + type + " for " + seconds + "s. Will revert to CLEAR after.");
+        getLogger().info("[WSM] Timed weather: " + type + " for " + seconds + "s.");
+        return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!command.getName().equalsIgnoreCase("timedweather")) return List.of();
+        if (args.length == 1) {
+            return List.of("clear", "rain", "thunder").stream()
+                .filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT)))
+                .toList();
+        }
+        if (args.length == 2) {
+            return List.of("30", "60", "120", "300", "600");
+        }
+        return List.of();
+    }
+
+    private void applyWeatherType(World world, String type, int durationTicks) {
+        switch (type) {
+            case "CLEAR" -> {
+                world.setStorm(false);
+                world.setThundering(false);
+                world.setWeatherDuration(durationTicks);
+            }
+            case "RAIN" -> {
+                world.setStorm(true);
+                world.setThundering(false);
+                world.setWeatherDuration(durationTicks);
+            }
+            case "THUNDER" -> {
+                world.setStorm(true);
+                world.setThundering(true);
+                world.setWeatherDuration(durationTicks);
+                world.setThunderDuration(durationTicks);
+            }
+        }
+    }
+
     // ── Weather cycling ───────────────────────────────────────────────────
 
     private void tickWeather() {
@@ -68,6 +161,24 @@ public class WeatherStructurePlugin extends JavaPlugin {
             cacheAgeTimer = CACHE_TTL;
         } else {
             cacheAgeTimer--;
+        }
+
+        // Handle timed weather countdown
+        if (timedWeatherTicks > 0) {
+            timedWeatherTicks--;
+            if (timedWeatherTicks <= 0) {
+                for (World world : overworldCache) {
+                    world.setStorm(false);
+                    world.setThundering(false);
+                    world.setWeatherDuration(999_999);
+                    getLogger().info("[WSM] Timed weather expired → CLEAR.");
+                }
+                // Reset cycling timers
+                for (World world : overworldCache) {
+                    weatherTimers.put(world.getName(), randomInterval());
+                }
+            }
+            return;  // Skip normal cycling while timed weather is active
         }
 
         for (World world : overworldCache) {
