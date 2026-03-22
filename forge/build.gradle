@@ -22,6 +22,9 @@ java {
     withSourcesJar()
 }
 
+// Include shared common module sources (#19)
+sourceSets.main.java.srcDirs += '../common/src/main/java'
+
 minecraft {
     mappings channel: 'official', version: minecraft_version
 

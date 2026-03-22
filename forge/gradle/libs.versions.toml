@@ -1,0 +1,4 @@
+[versions]
+minecraft    = "1.21.11"
+forge        = "61.1.0"
+forgegradle  = "6.0.47"

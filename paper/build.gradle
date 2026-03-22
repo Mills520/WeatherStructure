@@ -7,7 +7,9 @@ group   = maven_group
 base { archivesName = "weather-structure-mod-paper" }
 
 dependencies {
-    compileOnly "io.papermc.paper:paper-api:${paper_api}"
+    compileOnly libs.paper.api
+
+    implementation project(':common')
 }
 
 def targetJava = 21
@@ -25,6 +27,8 @@ jar {
     from("${rootProject.projectDir}/LICENSE") {
         rename { "${it}_${base.archivesName.get()}" }
     }
+    // Bundle common classes into the Paper plugin JAR
+    from(project(':common').sourceSets.main.output)
 }
 
 processResources {
