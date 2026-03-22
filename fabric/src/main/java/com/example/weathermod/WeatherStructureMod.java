@@ -42,7 +42,7 @@ public class WeatherStructureMod implements ModInitializer {
             // /timedweather <type> <seconds>
             dispatcher.register(
                 CommandManager.literal("timedweather")
-                    .requires(source -> source.hasPermissionLevel(2))
+                    .requires(source -> source.hasPermission(2))
                     .then(CommandManager.literal("status")
                         .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
                     )
@@ -66,7 +66,7 @@ public class WeatherStructureMod implements ModInitializer {
             // /weatherforecast
             dispatcher.register(
                 CommandManager.literal("weatherforecast")
-                    .requires(source -> source.hasPermissionLevel(2))
+                    .requires(source -> source.hasPermission(2))
                     .executes(ctx -> executeWeatherForecast(ctx.getSource()))
             );
         });
@@ -167,7 +167,7 @@ public class WeatherStructureMod implements ModInitializer {
     }
 
     private BiomeCategory getSpawnBiomeCategory(ServerWorld world) {
-        BlockPos spawn = world.getSpawnPos();
+        BlockPos spawn = world.getSpawnPoint().getPos();
         RegistryEntry<Biome> biome = world.getBiome(spawn);
         String biomeId = biome.getKey()
             .map(k -> k.getValue().toString())
