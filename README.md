@@ -4,10 +4,10 @@ One repo, one command, four JARs.
 
 | JAR | Platform | Install |
 |-----|----------|---------|
-| `fabric/build/libs/weather-structure-mod-fabric-1.2.0.jar` | Fabric 0.18+ | `mods/` |
-| `neoforge/build/libs/weather-structure-mod-neoforge-1.2.0.jar` | NeoForge 21.11+ | `mods/` |
-| `forge/build/libs/weather-structure-mod-forge-1.2.0.jar` | Forge 61.1+ | `mods/` |
-| `paper/build/libs/weather-structure-mod-paper-1.2.0.jar` | Paper/Spigot 1.21.11 | `plugins/` |
+| `fabric/build/libs/weather-structure-mod-fabric-1.3.0.jar` | Fabric 0.18+ | `mods/` |
+| `neoforge/build/libs/weather-structure-mod-neoforge-1.3.0.jar` | NeoForge 21.11+ | `mods/` |
+| `forge/build/libs/weather-structure-mod-forge-1.3.0.jar` | Forge 61.1+ | `mods/` |
+| `paper/build/libs/weather-structure-mod-paper-1.3.0.jar` | Paper/Spigot 1.21.11 | `plugins/` |
 
 ---
 
@@ -51,10 +51,27 @@ build-all.sh / build-all.bat runs both in sequence automatically.
    next cycle.
 2. **Structure Spawn Boost** — ~15% more villages, mansions, outposts
    and other structures in newly generated chunks.
+3. **Timed Weather Command** (`/timedweather`) — Set the weather to
+   Clear, Rain, or Thunder for a specified number of seconds. Once the
+   timer expires the weather automatically reverts to Clear. Normal weather
+   cycling is paused while a timed weather is active.
+   - **Syntax:** `/timedweather <clear|rain|thunder> <seconds>`
+   - **Permission:** Operator level 2 (Fabric/Forge/NeoForge) or
+     `weatherstructuremod.timedweather` (Paper, default: op)
+   - **Duration:** 1–86,400 seconds (up to 24 hours)
 
 ---
 
 ## Changelog
+
+### v1.3.0
+- **New: `/timedweather` command** — Set weather to clear, rain, or thunder
+  for a specified duration (in seconds). Weather reverts to clear when the
+  timer expires. Available on all four platforms.
+- Normal weather cycling pauses while timed weather is active and resumes
+  with a fresh random interval once the timer expires.
+- Paper: command registered in plugin.yml with tab-completion and permission
+  node `weatherstructuremod.timedweather`.
 
 ### v1.2.0
 - Weather cycle interval changed from 5–15 min to 30–60 min for a more

@@ -2,7 +2,18 @@ name: WeatherStructureMod
 version: '${version}'
 main: com.example.weathermod.WeatherStructurePlugin
 api-version: '1.21'
-description: Cycles weather every 5-15 min and boosts structure spawns by ~15%.
+description: Cycles weather every 30-60 min, boosts structure spawns by ~15%, and adds timed weather command.
 authors: [Mills520]
 website: https://github.com/Mills520/weather-structure-mod
 load: STARTUP
+
+commands:
+  timedweather:
+    description: Set weather for a specified duration, then revert to clear.
+    usage: /timedweather <clear|rain|thunder> <seconds>
+    permission: weatherstructuremod.timedweather
+
+permissions:
+  weatherstructuremod.timedweather:
+    description: Allows using the /timedweather command
+    default: op
