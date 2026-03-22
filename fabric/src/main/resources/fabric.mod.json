@@ -3,7 +3,7 @@
   "id": "weatherstructuremod",
   "version": "${version}",
   "name": "Weather & Structure Mod",
-  "description": "Cycles weather every 5–15 min and boosts structure spawns by ~15%. Fabric edition.",
+  "description": "Biome-aware weather cycling (30-60 min), structure boost (+15%), timed weather & forecast commands. Fabric edition.",
   "authors": ["Mills520"],
   "contributors": ["See GitHub repository for full contributor list"],
   "contact": { "sources": "https://github.com/Mills520/weather-structure-mod" },

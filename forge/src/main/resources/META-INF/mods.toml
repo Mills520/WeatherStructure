@@ -9,9 +9,8 @@ displayName = "Weather & Structure Mod"
 logoFile    = "assets/weatherstructuremod/icon.png"
 authors     = "Mills520"
 description = '''
-Cycles weather (clear/rain/thunder) every 5-15 minutes and boosts
-structure spawn rates by ~15%. Works on server and client.
-Forge edition for Minecraft 1.21.11.
+Biome-aware weather cycling (30-60 min), structure boost (+15%),
+timed weather & forecast commands. Forge edition for Minecraft 1.21.11.
 '''
 
 [[dependencies.weatherstructuremod]]

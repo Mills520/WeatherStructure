@@ -7,13 +7,18 @@ group     = maven_group
 base { archivesName = "weather-structure-mod-neoforge" }
 
 neoForge {
-    version = "${neoforge_version}"
+    version = libs.versions.neoforge.get()
 
     mods {
         weatherstructuremod {
             sourceSet sourceSets.main
         }
     }
+}
+
+dependencies {
+    implementation project(':common')
+    jarJar(project(':common')) { version { prefer mod_version } }
 }
 
 def targetJava = 21

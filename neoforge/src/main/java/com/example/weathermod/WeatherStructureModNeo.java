@@ -1,5 +1,8 @@
 package com.example.weathermod;
 
+import com.example.weathermod.common.BiomeCategory;
+import com.example.weathermod.common.WeatherEngine;
+import com.example.weathermod.common.WeatherType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.neoforged.bus.api.IEventBus;
@@ -9,18 +12,17 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.storage.ServerLevelData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Mod("weatherstructuremod")
 public class WeatherStructureModNeo {
@@ -28,31 +30,23 @@ public class WeatherStructureModNeo {
     public static final String MOD_ID = "weatherstructuremod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private enum WeatherType { CLEAR, RAIN, THUNDER }
-
-    // Cache values() array — avoids a new allocation on every weather change
-    private static final WeatherType[] WEATHER_TYPES = WeatherType.values();
-
-    private final Map<ResourceKey<Level>, Integer> weatherTimers = new HashMap<>();
-
-    // 30–60 minutes in ticks (20 ticks/sec × 60 sec/min)
-    private static final int MIN_TICKS      = 30 * 60 * 20;  // 36,000
-    private static final int MAX_TICKS      = 60 * 60 * 20;  // 72,000
-    private static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
-
-    // Timed weather state — when active, pauses normal cycling
-    private int timedWeatherTicks = 0;
+    private final WeatherEngine engine = new WeatherEngine();
 
     public WeatherStructureModNeo(IEventBus modBus) {
-        LOGGER.info("[WeatherStructureMod] v1.3.0 — NeoForge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.4.0 — NeoForge — Dynamic Weather & Structure Boost active.");
         NeoForge.EVENT_BUS.addListener(this::onLevelTick);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
     }
+
+    // ── Commands ──────────────────────────────────────────────────────────
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
             Commands.literal("timedweather")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("status")
+                    .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
+                )
                 .then(Commands.argument("type", StringArgumentType.word())
                     .suggests((ctx, builder) -> {
                         builder.suggest("clear");
@@ -69,23 +63,27 @@ public class WeatherStructureModNeo {
                     )
                 )
         );
+
+        event.getDispatcher().register(
+            Commands.literal("weatherforecast")
+                .requires(source -> source.hasPermission(2))
+                .executes(ctx -> executeWeatherForecast(ctx.getSource()))
+        );
     }
 
     private int executeTimedWeather(CommandSourceStack source, String type, int seconds) {
-        WeatherType weatherType;
-        try {
-            weatherType = WeatherType.valueOf(type);
-        } catch (IllegalArgumentException e) {
+        WeatherType weatherType = WeatherType.fromName(type);
+        if (weatherType == null) {
             source.sendFailure(Component.literal("Invalid weather type! Use: clear, rain, or thunder."));
             return 0;
         }
 
         ServerLevel level = source.getServer().overworld();
-        ServerLevelData data = (ServerLevelData) level.getLevelData();
         int ticks = seconds * 20;
 
-        applyWeatherType(data, weatherType, ticks);
-        timedWeatherTicks = ticks;
+        engine.setTimedWeather(weatherType, ticks, (wt, duration) ->
+            applyWeatherType((ServerLevelData) level.getLevelData(), wt, duration)
+        );
 
         source.sendSuccess(() -> Component.literal(
             "[WSM] Weather set to " + weatherType.name() + " for " + seconds + "s. Will revert to CLEAR after."
@@ -94,50 +92,73 @@ public class WeatherStructureModNeo {
         return 1;
     }
 
+    private int executeTimedWeatherStatus(CommandSourceStack source) {
+        if (engine.isTimedWeatherActive()) {
+            int remaining = engine.getTimedWeatherTicksRemaining();
+            source.sendSuccess(() -> Component.literal(
+                "[WSM] Timed weather: " + engine.getTimedWeatherType()
+                    + " — " + WeatherEngine.formatTicks(remaining)
+                    + " remaining (" + remaining + " ticks)"
+            ), false);
+        } else {
+            source.sendSuccess(() -> Component.literal(
+                "[WSM] No timed weather active. Normal cycling is running."
+            ), false);
+        }
+        return 1;
+    }
+
+    private int executeWeatherForecast(CommandSourceStack source) {
+        ServerLevel level = source.getServer().overworld();
+        String key = level.dimension().location().toString();
+
+        if (engine.isTimedWeatherActive()) {
+            int remaining = engine.getTimedWeatherTicksRemaining();
+            source.sendSuccess(() -> Component.literal(
+                "[WSM] Timed weather active: " + engine.getTimedWeatherType()
+                    + "\n  Remaining: " + WeatherEngine.formatTicks(remaining)
+                    + " (" + remaining + " ticks)"
+                    + "\n  Normal cycling resumes after timer expires."
+            ), false);
+        } else {
+            int ticksLeft = engine.getTicksUntilNextChange(key);
+            BiomeCategory category = getSpawnBiomeCategory(level);
+            String forecast = ticksLeft > 0
+                ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
+                : "imminent";
+
+            source.sendSuccess(() -> Component.literal(
+                "[WSM] Next weather change in ~" + forecast
+                    + "\n  Spawn biome influence: " + category.name()
+            ), false);
+        }
+        return 1;
+    }
+
+    // ── Tick handler ─────────────────────────────────────────────────────
+
     private void onLevelTick(LevelTickEvent.Post event) {
         if (event.getLevel().isClientSide()) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         if (!level.dimension().equals(Level.OVERWORLD)) return;
 
-        // Handle timed weather countdown
-        if (timedWeatherTicks > 0) {
-            timedWeatherTicks--;
-            if (timedWeatherTicks <= 0) {
-                ServerLevelData data = (ServerLevelData) level.getLevelData();
-                applyWeatherType(data, WeatherType.CLEAR, 999_999);
+        String key = level.dimension().location().toString();
+        BiomeCategory biomeCategory = getSpawnBiomeCategory(level);
+
+        WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
+            applyWeatherType((ServerLevelData) level.getLevelData(), type, duration)
+        );
+
+        if (changed != null) {
+            if (engine.isTimedWeatherActive()) {
                 LOGGER.info("[WeatherStructureMod] Timed weather expired → CLEAR.");
-                weatherTimers.put(level.dimension(), randomInterval());
+            } else {
+                LOGGER.info("[WeatherStructureMod] Weather → {}.", changed);
             }
-            return;
-        }
-
-        ResourceKey<Level> key = level.dimension();
-
-        Integer timer = weatherTimers.get(key);
-        if (timer == null) {
-            int initial = randomInterval();
-            weatherTimers.put(key, initial);
-            LOGGER.info("[WeatherStructureMod] First weather change in {} ticks (~{} sec).", initial, initial / 20);
-            return;
-        }
-
-        int ticksLeft = timer - 1;
-        if (ticksLeft <= 0) {
-            applyRandomWeather(level);
-            int next = randomInterval();
-            weatherTimers.put(key, next);
-            LOGGER.info("[WeatherStructureMod] Next weather change in {} ticks (~{} sec).", next, next / 20);
-        } else {
-            weatherTimers.put(key, ticksLeft);
         }
     }
 
-    private void applyRandomWeather(ServerLevel level) {
-        ServerLevelData data = (ServerLevelData) level.getLevelData();
-        WeatherType chosen = WEATHER_TYPES[ThreadLocalRandom.current().nextInt(WEATHER_TYPES.length)];
-        applyWeatherType(data, chosen, 999_999);
-        LOGGER.info("[WeatherStructureMod] Weather → {}.", chosen);
-    }
+    // ── Helpers ──────────────────────────────────────────────────────────
 
     private void applyWeatherType(ServerLevelData data, WeatherType type, int duration) {
         switch (type) {
@@ -165,7 +186,12 @@ public class WeatherStructureModNeo {
         }
     }
 
-    private static int randomInterval() {
-        return MIN_TICKS + ThreadLocalRandom.current().nextInt(INTERVAL_RANGE);
+    private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
+        BlockPos spawn = level.getSharedSpawnPos();
+        Holder<Biome> biome = level.getBiome(spawn);
+        String biomeId = biome.unwrapKey()
+            .map(k -> k.location().toString())
+            .orElse("");
+        return BiomeCategory.fromBiomeId(biomeId);
     }
 }
