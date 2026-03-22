@@ -45,7 +45,7 @@ public class WeatherStructureModForge {
     private void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
             Commands.literal("timedweather")
-                .requires(source -> source.hasPermission(2))
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.literal("status")
                     .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
                 )
@@ -68,7 +68,7 @@ public class WeatherStructureModForge {
 
         event.getDispatcher().register(
             Commands.literal("weatherforecast")
-                .requires(source -> source.hasPermission(2))
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .executes(ctx -> executeWeatherForecast(ctx.getSource()))
         );
     }
@@ -112,7 +112,7 @@ public class WeatherStructureModForge {
 
     private int executeWeatherForecast(CommandSourceStack source) {
         ServerLevel level = source.getServer().overworld();
-        String key = level.dimension().location().toString();
+        String key = level.dimension().identifier().toString();
 
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
@@ -143,7 +143,7 @@ public class WeatherStructureModForge {
         if (!(event.level() instanceof ServerLevel level)) return;
         if (!level.dimension().equals(Level.OVERWORLD)) return;
 
-        String key = level.dimension().location().toString();
+        String key = level.dimension().identifier().toString();
         BiomeCategory biomeCategory = getSpawnBiomeCategory(level);
 
         WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
@@ -188,10 +188,10 @@ public class WeatherStructureModForge {
     }
 
     private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
-        BlockPos spawn = level.getSharedSpawnPos();
+        BlockPos spawn = level.getRespawnData().pos();
         Holder<Biome> biome = level.getBiome(spawn);
         String biomeId = biome.unwrapKey()
-            .map(k -> k.location().toString())
+            .<String>map(k -> k.identifier().toString())
             .orElse("");
         return BiomeCategory.fromBiomeId(biomeId);
     }
