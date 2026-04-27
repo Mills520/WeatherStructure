@@ -12,8 +12,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -38,6 +40,7 @@ public class WeatherStructurePlugin extends JavaPlugin {
 
     // Cache of overworld-environment worlds — refreshed periodically
     private List<World> overworldCache = List.of();
+    private final Map<String, BiomeCategory> spawnBiomeCategoryCache = new HashMap<>();
     private int         cacheAgeTimer  = 0;
     private static final int CACHE_TTL = 20 * 30; // refresh every 30 seconds
 
@@ -215,26 +218,49 @@ public class WeatherStructurePlugin extends JavaPlugin {
             overworldCache = Bukkit.getWorlds().stream()
                 .filter(w -> w.getEnvironment() == World.Environment.NORMAL)
                 .toList();
+            spawnBiomeCategoryCache.clear();
+            for (World world : overworldCache) {
+                spawnBiomeCategoryCache.put(world.getKey().toString(), getSpawnBiomeCategory(world));
+            }
             cacheAgeTimer = CACHE_TTL;
         } else {
             cacheAgeTimer--;
         }
 
+        // Timed weather is global and should only tick down once per server tick.
+        if (engine.isTimedWeatherActive()) {
+            World primaryWorld = overworldCache.isEmpty() ? null : overworldCache.get(0);
+            if (primaryWorld == null) return;
+
+            String primaryKey = primaryWorld.getKey().toString();
+            BiomeCategory primaryBiome = spawnBiomeCategoryCache.getOrDefault(
+                primaryKey, getSpawnBiomeCategory(primaryWorld)
+            );
+
+            WeatherType changed = engine.tick(primaryKey, primaryBiome, (type, duration) ->
+                applyWeatherType(primaryWorld, type, duration)
+            );
+
+            if (changed == WeatherType.CLEAR && !engine.isTimedWeatherActive()) {
+                for (int i = 1; i < overworldCache.size(); i++) {
+                    applyWeatherType(overworldCache.get(i), WeatherType.CLEAR, WeatherEngine.WEATHER_DURATION);
+                }
+                getLogger().info("[WSM] Timed weather expired → CLEAR.");
+            }
+            return;
+        }
+
         for (World world : overworldCache) {
             // Use getKey() for stable world identifier (#10)
             String key = world.getKey().toString();
-            BiomeCategory biomeCategory = getSpawnBiomeCategory(world);
+            BiomeCategory biomeCategory = spawnBiomeCategoryCache.getOrDefault(key, getSpawnBiomeCategory(world));
 
             WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
                 applyWeatherType(world, type, duration)
             );
 
             if (changed != null) {
-                if (engine.isTimedWeatherActive()) {
-                    getLogger().info("[WSM] Timed weather expired → CLEAR.");
-                } else {
-                    getLogger().info("[WSM] '" + world.getName() + "' → " + changed + ".");
-                }
+                getLogger().info("[WSM] '" + world.getName() + "' → " + changed + ".");
             }
         }
     }
