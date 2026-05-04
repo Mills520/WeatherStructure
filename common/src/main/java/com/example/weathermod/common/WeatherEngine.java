@@ -2,6 +2,7 @@ package com.example.weathermod.common;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -14,14 +15,14 @@ import java.util.concurrent.ThreadLocalRandom;
  * <b>Thread-safety note (#13):</b> Both {@link #tick} and {@link #setTimedWeather}
  * are called exclusively from the server's main thread on every supported platform:
  * <ul>
- *   <li>Fabric/Forge/NeoForge — commands and tick events run on the server thread.</li>
- *   <li>Paper — {@code BukkitRunnable} and {@code onCommand} run on the main thread.</li>
+ *   <li>Fabric/Forge/NeoForge - commands and tick events run on the server thread.</li>
+ *   <li>Paper - {@code BukkitRunnable} and {@code onCommand} run on the main thread.</li>
  * </ul>
  * No synchronization is required.
  */
 public class WeatherEngine {
 
-    // 30–60 minutes in ticks (20 ticks/sec × 60 sec/min)
+    // 30-60 minutes in ticks (20 ticks/sec x 60 sec/min)
     public static final int MIN_TICKS      = 30 * 60 * 20;   // 36,000
     public static final int MAX_TICKS      = 60 * 60 * 20;   // 72,000
     public static final int INTERVAL_RANGE = MAX_TICKS - MIN_TICKS + 1;
@@ -51,7 +52,11 @@ public class WeatherEngine {
      * @return the {@link WeatherType} that was applied, or {@code null} if no change
      */
     public WeatherType tick(String worldKey, BiomeCategory biomeCategory, WeatherApplier applier) {
-        // ── Timed weather countdown ──────────────────────────────────────
+        Objects.requireNonNull(worldKey, "worldKey");
+        Objects.requireNonNull(biomeCategory, "biomeCategory");
+        Objects.requireNonNull(applier, "applier");
+
+        // Timed weather countdown
         if (timedWeatherTicks > 0) {
             timedWeatherTicks--;
             if (timedWeatherTicks <= 0) {
@@ -63,11 +68,11 @@ public class WeatherEngine {
             return null;
         }
 
-        // ── Normal cycling ───────────────────────────────────────────────
+        // Normal cycling
         int[] timer = weatherTimers.get(worldKey);
         if (timer == null) {
             weatherTimers.put(worldKey, new int[]{randomInterval()});
-            return null; // first tick — just initialise
+            return null; // first tick - just initialise
         }
 
         timer[0]--;
@@ -82,6 +87,10 @@ public class WeatherEngine {
 
     /** Activates a timed weather override, pausing normal cycling. */
     public void setTimedWeather(WeatherType type, int ticks, WeatherApplier applier) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(applier, "applier");
+        if (ticks <= 0) throw new IllegalArgumentException("ticks must be positive");
+
         applier.apply(type, ticks);
         timedWeatherTicks = ticks;
         timedWeatherType  = type;
@@ -115,7 +124,7 @@ public class WeatherEngine {
 
     /** Formats a tick count as a human-readable duration string (e.g. "12m 30s"). */
     public static String formatTicks(int ticks) {
-        int totalSeconds = ticks / 20;
+        int totalSeconds = Math.max(0, ticks) / 20;
         int minutes = totalSeconds / 60;
         int seconds = totalSeconds % 60;
         if (minutes > 0 && seconds > 0) return minutes + "m " + seconds + "s";
