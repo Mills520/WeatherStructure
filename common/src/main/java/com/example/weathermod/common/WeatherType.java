@@ -15,8 +15,13 @@ public enum WeatherType {
 
     /** Case-insensitive lookup; returns {@code null} if no match. */
     public static WeatherType fromName(String name) {
+        if (name == null) return null;
+
+        String normalized = name.trim();
+        if (normalized.isEmpty()) return null;
+
         for (WeatherType t : VALUES) {
-            if (t.name().equalsIgnoreCase(name)) return t;
+            if (t.name().equalsIgnoreCase(normalized)) return t;
         }
         return null;
     }
