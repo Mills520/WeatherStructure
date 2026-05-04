@@ -1,6 +1,7 @@
 package com.example.weathermod.common;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -27,20 +28,27 @@ public enum BiomeCategory {
 
     /** Picks a random weather type using this category's weighted probabilities. */
     public WeatherType weightedRandom() {
-        double r = ThreadLocalRandom.current().nextDouble();
-        if (r < clearWeight)   return WeatherType.CLEAR;
-        if (r < rainThreshold) return WeatherType.RAIN;
+        return selectWeather(ThreadLocalRandom.current().nextDouble());
+    }
+
+    /** Selects weather for a roll in [0.0, 1.0). Package-private for deterministic tests. */
+    WeatherType selectWeather(double roll) {
+        if (Double.isNaN(roll) || roll < 0.0 || roll >= 1.0) {
+            throw new IllegalArgumentException("roll must be in [0.0, 1.0)");
+        }
+        if (roll < clearWeight)   return WeatherType.CLEAR;
+        if (roll < rainThreshold) return WeatherType.RAIN;
         return WeatherType.THUNDER;
     }
 
-    // ── Biome → Category mapping ─────────────────────────────────────────
+    // Biome -> Category mapping
 
     private static final Map<String, BiomeCategory> BIOME_MAP = buildBiomeMap();
 
     private static Map<String, BiomeCategory> buildBiomeMap() {
         Map<String, BiomeCategory> m = new HashMap<>();
 
-        // Dry biomes — predominantly clear skies
+        // Dry biomes - predominantly clear skies
         for (String b : new String[]{
             "desert", "badlands", "eroded_badlands", "wooded_badlands",
             "savanna", "savanna_plateau", "windswept_savanna"
@@ -48,7 +56,7 @@ public enum BiomeCategory {
             m.put("minecraft:" + b, DRY);
         }
 
-        // Wet biomes — rain-heavy
+        // Wet biomes - rain-heavy
         for (String b : new String[]{
             "jungle", "sparse_jungle", "bamboo_jungle",
             "swamp", "mangrove_swamp", "mushroom_fields", "lush_caves"
@@ -56,7 +64,7 @@ public enum BiomeCategory {
             m.put("minecraft:" + b, WET);
         }
 
-        // Cold biomes — moderate rain/snow, less thunder
+        // Cold biomes - moderate rain/snow, less thunder
         for (String b : new String[]{
             "snowy_plains", "ice_spikes", "snowy_taiga",
             "frozen_river", "frozen_ocean", "snowy_beach",
@@ -70,10 +78,16 @@ public enum BiomeCategory {
     }
 
     /**
-     * Looks up the category for a namespaced biome ID (e.g. {@code "minecraft:desert"}).
-     * Returns {@link #TEMPERATE} for any biome not explicitly mapped.
+     * Looks up the category for a biome ID. Namespaced IDs are preferred, but
+     * bare vanilla IDs are accepted. Unknown or blank IDs default to TEMPERATE.
      */
     public static BiomeCategory fromBiomeId(String biomeId) {
-        return BIOME_MAP.getOrDefault(biomeId, TEMPERATE);
+        if (biomeId == null) return TEMPERATE;
+
+        String normalized = biomeId.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) return TEMPERATE;
+        if (!normalized.contains(":")) normalized = "minecraft:" + normalized;
+
+        return BIOME_MAP.getOrDefault(normalized, TEMPERATE);
     }
 }
