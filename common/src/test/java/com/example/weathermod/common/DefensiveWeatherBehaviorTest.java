@@ -44,6 +44,15 @@ class DefensiveWeatherBehaviorTest {
     }
 
     @Test
+    void biomeCategory_exposesForecastProbabilitySummary() {
+        assertEquals(60, BiomeCategory.DRY.clearChancePercent());
+        assertEquals(25, BiomeCategory.DRY.rainChancePercent());
+        assertEquals(15, BiomeCategory.DRY.thunderChancePercent());
+        assertEquals("Clear 60%, Rain 25%, Thunder 15%", BiomeCategory.DRY.describeProbabilities());
+        assertEquals("Clear 33%, Rain 33%, Thunder 33%", BiomeCategory.TEMPERATE.describeProbabilities());
+    }
+
+    @Test
     void weatherEngine_rejectsInvalidTimedWeatherInputs() {
         WeatherEngine engine = new WeatherEngine();
 
