@@ -19,10 +19,14 @@ public enum BiomeCategory {
     COLD     (0.30, 0.40, 0.30);
 
     private final double clearWeight;
+    private final double rainWeight;
+    private final double thunderWeight;
     private final double rainThreshold; // clearWeight + rainWeight
 
     BiomeCategory(double clear, double rain, double thunder) {
         this.clearWeight   = clear;
+        this.rainWeight    = rain;
+        this.thunderWeight = thunder;
         this.rainThreshold = clear + rain;
     }
 
@@ -39,6 +43,29 @@ public enum BiomeCategory {
         if (roll < clearWeight)   return WeatherType.CLEAR;
         if (roll < rainThreshold) return WeatherType.RAIN;
         return WeatherType.THUNDER;
+    }
+
+    public int clearChancePercent() {
+        return toPercent(clearWeight);
+    }
+
+    public int rainChancePercent() {
+        return toPercent(rainWeight);
+    }
+
+    public int thunderChancePercent() {
+        return toPercent(thunderWeight);
+    }
+
+    /** Returns a compact forecast-friendly probability summary. */
+    public String describeProbabilities() {
+        return "Clear " + clearChancePercent() + "%"
+            + ", Rain " + rainChancePercent() + "%"
+            + ", Thunder " + thunderChancePercent() + "%";
+    }
+
+    private static int toPercent(double weight) {
+        return (int) Math.round(weight * 100.0);
     }
 
     // Biome -> Category mapping
