@@ -7,6 +7,7 @@ public enum WeatherType {
     CLEAR, RAIN, THUNDER;
 
     private static final WeatherType[] VALUES = values();
+    private static final WeatherType[] LOOKUP_VALUES = values();
 
     /** Returns a cached copy of the values array (no allocation per call). */
     public static WeatherType[] cachedValues() {
@@ -20,7 +21,7 @@ public enum WeatherType {
         String normalized = name.trim();
         if (normalized.isEmpty()) return null;
 
-        for (WeatherType t : VALUES) {
+        for (WeatherType t : LOOKUP_VALUES) {
             if (t.name().equalsIgnoreCase(normalized)) return t;
         }
         return null;
