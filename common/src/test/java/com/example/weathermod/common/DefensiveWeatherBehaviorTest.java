@@ -18,6 +18,19 @@ class DefensiveWeatherBehaviorTest {
     }
 
     @Test
+    void weatherType_fromName_isIsolatedFromCachedValuesMutation() {
+        WeatherType[] cached = WeatherType.cachedValues();
+        WeatherType originalFirst = cached[0];
+
+        try {
+            cached[0] = null;
+            assertEquals(WeatherType.CLEAR, WeatherType.fromName("clear"));
+        } finally {
+            cached[0] = originalFirst;
+        }
+    }
+
+    @Test
     void biomeCategory_fromBiomeId_normalizesInput() {
         assertEquals(BiomeCategory.TEMPERATE, BiomeCategory.fromBiomeId(null));
         assertEquals(BiomeCategory.TEMPERATE, BiomeCategory.fromBiomeId(""));
