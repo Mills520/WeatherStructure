@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Forge 61.x (1.21.11) — EventBus 7 style.
+ * Forge 61.x (MC 1.21.8 - 26.1.2) — EventBus 7 style.
  */
 @Mod("weatherstructuremod")
 public class WeatherStructureModForge {
@@ -41,7 +41,7 @@ public class WeatherStructureModForge {
     private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
 
     public WeatherStructureModForge(FMLJavaModLoadingContext context) {
-        LOGGER.info("[WeatherStructureMod] v1.4.0 — Forge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.5.0 — Forge — Dynamic Weather & Structure Boost active.");
         TickEvent.LevelTickEvent.Post.BUS.addListener(this::onLevelTick);
         RegisterCommandsEvent.BUS.addListener(this::onRegisterCommands);
     }

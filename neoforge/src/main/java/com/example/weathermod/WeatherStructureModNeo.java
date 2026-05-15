@@ -39,7 +39,7 @@ public class WeatherStructureModNeo {
     private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
 
     public WeatherStructureModNeo(IEventBus modBus) {
-        LOGGER.info("[WeatherStructureMod] v1.4.0 — NeoForge — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.5.0 — NeoForge — Dynamic Weather & Structure Boost active.");
         NeoForge.EVENT_BUS.addListener(this::onLevelTick);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
     }
