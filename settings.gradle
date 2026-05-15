@@ -10,7 +10,22 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         gradlePluginPortal()
-        maven { name = "Fabric";   url = "https://maven.fabricmc.net/" }
+        // Fabric's intermediary artifact ships with a stub POM declaring
+        // <version>0.0.0</version>, which Gradle's strict module-metadata
+        // check rejects when you request a real version. Pin a dedicated
+        // repo entry that only handles the intermediary module and uses
+        // artifact-derived metadata, so the bad POM is bypassed.
+        maven {
+            name = "Fabric-Intermediary"
+            url = "https://maven.fabricmc.net/"
+            metadataSources { artifact() }
+            content { includeModule("net.fabricmc", "intermediary") }
+        }
+        maven {
+            name = "Fabric"
+            url = "https://maven.fabricmc.net/"
+            content { excludeModule("net.fabricmc", "intermediary") }
+        }
         maven { name = "NeoForge"; url = "https://maven.neoforged.net/releases/" }
         maven { name = "PaperMC";  url = "https://repo.papermc.io/repository/maven-public/" }
         mavenCentral()
