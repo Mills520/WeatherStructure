@@ -16,7 +16,16 @@ dependencies {
     // already mojang-named, so the "named" side of intermediary maps the
     // mojang source we write to the intermediary class names Fabric uses
     // at runtime (the `net.minecraft.class_NNNN` form).
-    mappings "net.fabricmc:intermediary:${minecraft_version_26x}:v2"
+    //
+    // The `@jar` suffix is an artifact-only dependency notation that
+    // bypasses POM resolution. Fabric publishes intermediary with a stub
+    // POM that declares <version>0.0.0</version>, which Gradle's strict
+    // module-metadata check rejects with:
+    //     "inconsistent module metadata found.
+    //      Descriptor: net.fabricmc:intermediary:0.0.0
+    //      Errors: bad version: expected='26.1.2' found='0.0.0'"
+    // Going straight to the jar sidesteps that check.
+    mappings "net.fabricmc:intermediary:${minecraft_version_26x}:v2@jar"
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_26x}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_26x}"
 
