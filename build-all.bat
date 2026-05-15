@@ -1,19 +1,25 @@
 @echo off
-REM Weather & Structure Mod — build all platforms (Windows)
-REM Produces 7 JARs (4 × 1.21.x + 3 × 26.1.x).
+REM Weather & Structure Mod - build all platforms (Windows)
+REM Produces 7 JARs (4 x 1.21.x + 3 x 26.1.x).
 REM
 REM Java requirements:
-REM   MC 1.21.x line + Forge → Java 21
-REM   MC 26.1.x line         → Java 25 (Loom/MC enforces this at configuration)
+REM   MC 1.21.x line + Forge -> Java 21
+REM   MC 26.1.x line         -> Java 25 (Loom/MC enforces this at configuration)
 setlocal enabledelayedexpansion
 
 call :main
+set "_EXITCODE=!errorlevel!"
 echo.
-echo ════════════════════════════════════════════════════
-echo  Script finished. Check build-all.log for details.
-echo ════════════════════════════════════════════════════
+echo ====================================================
+if "!_EXITCODE!"=="0" (
+    echo  Script finished. Check build-all.log for details.
+) else (
+    echo  Script FAILED with exit code !_EXITCODE!.
+    echo  Check build-all.log for details.
+)
+echo ====================================================
 pause
-exit /b
+exit /b !_EXITCODE!
 
 :main
 set "ROOT=%~dp0"
@@ -24,14 +30,14 @@ echo Root: %ROOT% >> "%LOGFILE%"
 
 echo.
 echo ====================================================
-echo  Weather ^& Structure Mod — Full Build
+echo  Weather ^& Structure Mod - Full Build
 echo  1.21.x line (Java 21) + 26.1.x line (Java 25)
 echo ====================================================
 echo.
 echo Log file: %LOGFILE%
 echo.
 
-REM ── Find Java 21 ─────────────────────────────────────────────────────
+REM -- Find Java 21 -----------------------------------------------------
 call :find_java 21 JAVA21_HOME
 if "!JAVA21_HOME!"=="" (
     echo.
@@ -46,7 +52,7 @@ echo JAVA21_HOME = !JAVA21_HOME!
 echo JAVA21_HOME = !JAVA21_HOME! >> "%LOGFILE%"
 "!JAVA21_HOME!\bin\java.exe" -version >> "%LOGFILE%" 2>&1
 
-REM ── Find Java 25 ─────────────────────────────────────────────────────
+REM -- Find Java 25 -----------------------------------------------------
 call :find_java 25 JAVA25_HOME
 if "!JAVA25_HOME!"=="" (
     echo.
@@ -62,7 +68,7 @@ echo JAVA25_HOME = !JAVA25_HOME! >> "%LOGFILE%"
 "!JAVA25_HOME!\bin\java.exe" -version >> "%LOGFILE%" 2>&1
 echo.
 
-REM ── Stop any cached Gradle daemons (prevents stale JDK caching) ─────────
+REM -- Stop any cached Gradle daemons (prevents stale JDK caching) ---------
 echo Stopping any cached Gradle daemons...
 call "%ROOT%gradlew.bat" --stop >nul 2>&1
 call "%ROOT%forge\gradlew.bat" --stop >nul 2>&1
@@ -75,7 +81,7 @@ if not exist "%ROOT%gradlew.bat" (
     exit /b 1
 )
 
-REM ── Read mod version from gradle.properties ──────────────────────────
+REM -- Read mod version from gradle.properties --------------------------
 set "MOD_VERSION="
 for /f "tokens=2 delims==" %%v in ('findstr /b "mod_version" "%ROOT%gradle.properties"') do (
     set "MOD_VERSION=%%v"
@@ -85,7 +91,7 @@ if "%MOD_VERSION%"=="" set "MOD_VERSION=?"
 
 cd /d "%ROOT%"
 
-REM ── Step 1: 1.21.x line (Java 21) ────────────────────────────────────
+REM -- Step 1: 1.21.x line (Java 21) ------------------------------------
 echo [1/3] Building Fabric/NeoForge/Paper for MC 1.21.x ^(Java 21, Gradle 9.2^)...
 echo [1/3] 1.21.x build starting >> "%LOGFILE%"
 
@@ -104,11 +110,11 @@ echo [OK] NeoForge 1.21.x:  neoforge\build\libs\weather-structure-mod-neoforge-%
 echo [OK] Paper 1.21.x:     paper\build\libs\weather-structure-mod-paper-%MOD_VERSION%.jar
 echo.
 
-REM ── Step 2: 26.1.x line (Java 25) ────────────────────────────────────
+REM -- Step 2: 26.1.x line (Java 25) ------------------------------------
 echo [2/3] Building Fabric/NeoForge/Paper for MC 26.1.x ^(Java 25, Gradle 9.2^)...
 echo [2/3] 26.1.x build starting >> "%LOGFILE%"
 
-REM Stop the daemon from step 1 — it was started under Java 21 and will refuse
+REM Stop the daemon from step 1 - it was started under Java 21 and will refuse
 REM to run the Java 25 build.
 call "%ROOT%gradlew.bat" --stop >nul 2>&1
 
@@ -127,7 +133,7 @@ echo [OK] NeoForge 26.1.x:  neoforge-26x\build\libs\weather-structure-mod-neofor
 echo [OK] Paper 26.1.x:     paper-26x\build\libs\weather-structure-mod-paper-26x-%MOD_VERSION%.jar
 echo.
 
-REM ── Step 3: Forge (Java 21, Gradle 8.8) ──────────────────────────────
+REM -- Step 3: Forge (Java 21, Gradle 8.8) ------------------------------
 echo [3/3] Building Forge for MC 1.21.x ^(Java 21, Gradle 8.8^)...
 echo [3/3] Forge build starting >> "%LOGFILE%"
 
@@ -164,7 +170,7 @@ echo SUCCESS >> "%LOGFILE%"
 exit /b 0
 
 
-REM ════════════════════════════════════════════════════════════════════
+REM ====================================================================
 REM  find_java <major> <output_var>
 REM  Locates a JDK whose `java -version` reports the requested major
 REM  version. Sets the named env var to the JDK home, or leaves it
@@ -173,7 +179,7 @@ REM
 REM  Detection extracts the version string from `java -version` and
 REM  compares the major component numerically, so it handles every
 REM  shape the JDK emits ("25", "25.0.1", "25-ea", "25+9-LTS", ...).
-REM ════════════════════════════════════════════════════════════════════
+REM ====================================================================
 :find_java
 set "_FIND_MAJOR=%~1"
 set "_FIND_OUT=%~2"
@@ -221,19 +227,22 @@ set "%_FIND_OUT%=%_FIND_RESULT%"
 exit /b 0
 
 
-REM ════════════════════════════════════════════════════════════════════
+REM ====================================================================
 REM  java_major <java.exe path>
 REM  Runs `java -version`, extracts the quoted version string from the
 REM  first line ("<vendor> version "<v>" ..."), and leaves the leading
 REM  numeric component in !_JAVA_MAJOR!. Handles "25", "25.0.1",
 REM  "25-ea", "25+9-LTS", etc.
-REM ════════════════════════════════════════════════════════════════════
+REM ====================================================================
 :java_major
 set "_JAVA_MAJOR="
 set "_JAVA_RAW="
 REM Only the first line of `java -version` has '<vendor> version "<ver>"';
 REM subsequent lines describe the runtime/VM. Capture token 3 of line 1 only.
-for /f "tokens=3" %%v in ('""%~1" -version 2^>^&1') do (
+REM `usebackq` lets us use double quotes normally inside the command - the
+REM command itself is delimited by backticks, so a path with spaces just
+REM needs the usual one set of double quotes around it.
+for /f "usebackq tokens=3" %%v in (`"%~1" -version 2^>^&1`) do (
     if not defined _JAVA_RAW set "_JAVA_RAW=%%v"
 )
 if not defined _JAVA_RAW exit /b 0
