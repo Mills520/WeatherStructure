@@ -16,7 +16,10 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
-    testImplementation libs.junit.jupiter
+    testImplementation         libs.junit.jupiter
+    // Gradle 9 no longer ships the JUnit Platform launcher implicitly; declare
+    // it explicitly so `useJUnitPlatform()` can start the test executor.
+    testRuntimeOnly            libs.junit.platform.launcher
 }
 
 tasks.named('test') {

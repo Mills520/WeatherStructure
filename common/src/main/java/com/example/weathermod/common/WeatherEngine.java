@@ -35,6 +35,7 @@ public class WeatherEngine {
 
     private int         timedWeatherTicks = 0;
     private WeatherType timedWeatherType  = null;
+    private boolean     lastTickWasTimedExpiry = false;
 
     /** Callback that platforms implement to actually change the world's weather. */
     @FunctionalInterface
@@ -51,13 +52,16 @@ public class WeatherEngine {
      * @return the {@link WeatherType} that was applied, or {@code null} if no change
      */
     public WeatherType tick(String worldKey, BiomeCategory biomeCategory, WeatherApplier applier) {
+        lastTickWasTimedExpiry = false;
+
         // ── Timed weather countdown ──────────────────────────────────────
         if (timedWeatherTicks > 0) {
             timedWeatherTicks--;
             if (timedWeatherTicks <= 0) {
                 applier.apply(WeatherType.CLEAR, WEATHER_DURATION);
-                weatherTimers.put(worldKey, new int[]{randomInterval()});
+                resetTimer(worldKey);
                 timedWeatherType = null;
+                lastTickWasTimedExpiry = true;
                 return WeatherType.CLEAR;
             }
             return null;
@@ -70,14 +74,35 @@ public class WeatherEngine {
             return null; // first tick — just initialise
         }
 
-        timer[0]--;
-        if (timer[0] <= 0) {
+        if (--timer[0] <= 0) {
             WeatherType chosen = biomeCategory.weightedRandom();
             applier.apply(chosen, WEATHER_DURATION);
             timer[0] = randomInterval();
             return chosen;
         }
         return null;
+    }
+
+    /**
+     * Reuses an existing timer array for the given world if present (avoiding
+     * allocation), otherwise inserts a new one.
+     */
+    private void resetTimer(String worldKey) {
+        int[] timer = weatherTimers.get(worldKey);
+        if (timer != null) {
+            timer[0] = randomInterval();
+        } else {
+            weatherTimers.put(worldKey, new int[]{randomInterval()});
+        }
+    }
+
+    /**
+     * Returns {@code true} if the most recent {@link #tick} call returned because
+     * an active timed weather just expired (as opposed to a normal weather cycle
+     * change). Platforms use this to log the correct message.
+     */
+    public boolean wasLastTickTimedExpiry() {
+        return lastTickWasTimedExpiry;
     }
 
     /** Activates a timed weather override, pausing normal cycling. */
