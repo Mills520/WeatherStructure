@@ -12,15 +12,19 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public enum BiomeCategory {
 
-    DRY      (0.60, 0.25, 0.15),
-    TEMPERATE(1.0 / 3, 1.0 / 3, 1.0 / 3),
-    WET      (0.20, 0.50, 0.30),
-    COLD     (0.30, 0.40, 0.30);
+    DRY      (0.60,    0.25),
+    TEMPERATE(1.0 / 3, 1.0 / 3),
+    WET      (0.20,    0.50),
+    COLD     (0.30,    0.40);
 
     private final double clearWeight;
     private final double rainThreshold; // clearWeight + rainWeight
 
-    BiomeCategory(double clear, double rain, double thunder) {
+    /**
+     * The remaining probability mass after clear + rain is assigned to
+     * thunder, so an explicit thunder weight is not required.
+     */
+    BiomeCategory(double clear, double rain) {
         this.clearWeight   = clear;
         this.rainThreshold = clear + rain;
     }

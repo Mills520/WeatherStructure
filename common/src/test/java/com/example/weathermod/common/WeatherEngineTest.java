@@ -124,12 +124,36 @@ class WeatherEngineTest {
         appliedWeather.clear();
 
         // Tick 3 times to expire
+        WeatherType last = null;
         for (int i = 0; i < 3; i++) {
-            engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+            last = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
         }
 
         assertFalse(engine.isTimedWeatherActive());
         assertEquals(List.of(WeatherType.CLEAR), appliedWeather);
+        assertEquals(WeatherType.CLEAR, last, "Expiring tick should return CLEAR");
+        assertTrue(engine.wasLastTickTimedExpiry(),
+            "Engine should report timed-expiry on the expiring tick");
+    }
+
+    @Test
+    void wasLastTickTimedExpiry_falseForNormalInit() {
+        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        assertFalse(engine.wasLastTickTimedExpiry());
+    }
+
+    @Test
+    void wasLastTickTimedExpiry_resetsOnNextTick() {
+        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.setTimedWeather(WeatherType.RAIN, 1, recorder);
+
+        // The 1-tick timer expires on the very next tick
+        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        assertTrue(engine.wasLastTickTimedExpiry());
+
+        // Next tick — no longer the expiry tick
+        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        assertFalse(engine.wasLastTickTimedExpiry());
     }
 
     @Test

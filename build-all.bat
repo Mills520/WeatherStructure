@@ -116,6 +116,15 @@ if not exist "%ROOT%gradlew.bat" (
     exit /b 1
 )
 
+REM ── Read mod version from gradle.properties so this script never drifts ──
+set "MOD_VERSION="
+for /f "tokens=2 delims==" %%v in ('findstr /b "mod_version" "%ROOT%gradle.properties"') do (
+    set "MOD_VERSION=%%v"
+)
+REM Trim leading spaces
+for /f "tokens=* delims= " %%v in ("%MOD_VERSION%") do set "MOD_VERSION=%%v"
+if "%MOD_VERSION%"=="" set "MOD_VERSION=?"
+
 REM ── Step 1: Fabric, NeoForge, Paper ──────────────────────────────────
 echo [1/2] Building Fabric, NeoForge and Paper ^(Gradle 9.2^)...
 echo [1/2] Fabric+NeoForge+Paper build starting >> "%LOGFILE%"
@@ -133,9 +142,9 @@ if %STEP1_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Fabric:   fabric\build\libs\weather-structure-mod-fabric-1.2.0.jar
-echo [OK] NeoForge: neoforge\build\libs\weather-structure-mod-neoforge-1.2.0.jar
-echo [OK] Paper:    paper\build\libs\weather-structure-mod-paper-1.2.0.jar
+echo [OK] Fabric:   fabric\build\libs\weather-structure-mod-fabric-%MOD_VERSION%.jar
+echo [OK] NeoForge: neoforge\build\libs\weather-structure-mod-neoforge-%MOD_VERSION%.jar
+echo [OK] Paper:    paper\build\libs\weather-structure-mod-paper-%MOD_VERSION%.jar
 echo.
 
 REM ── Step 2: Forge ────────────────────────────────────────────────────
@@ -160,7 +169,7 @@ if %STEP2_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Forge: forge\build\libs\weather-structure-mod-forge-1.2.0.jar
+echo [OK] Forge: forge\build\libs\weather-structure-mod-forge-%MOD_VERSION%.jar
 echo.
 echo ====================================================
 echo  All 4 JARs built successfully!

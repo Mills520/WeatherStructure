@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.weathermod.common.WeatherEngineTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-05-15T17:14:01.508Z" hostname="vm" time="0.137">
+  <properties/>
+  <testcase name="biomeCategory_unknownBiomeDefaultsToTemperate()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.032"/>
+  <testcase name="biomeCategory_knownBiomes()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="formatTicks_minutesOnly()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.006"/>
+  <testcase name="biomeCategory_dryBiome_favorsClear()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.009"/>
+  <testcase name="timedWeather_pausesNormalCycling()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.002"/>
+  <testcase name="normalCycling_eventuallyChangesWeather()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.006"/>
+  <testcase name="timedWeatherStatus_noActiveTimer()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="weatherType_fromName_caseInsensitive()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="formatTicks_minutesAndSeconds()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.01"/>
+  <testcase name="biomeCategory_weightedRandom_producesAllTypes()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.017"/>
+  <testcase name="randomInterval_withinBounds()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.007"/>
+  <testcase name="getTicksUntilNextChange_afterInit()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.003"/>
+  <testcase name="firstTick_initialisesTimer_noWeatherChange()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="wasLastTickTimedExpiry_resetsOnNextTick()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.004"/>
+  <testcase name="weatherType_cachedValues()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="getTicksUntilNextChange_unknownWorld()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="wasLastTickTimedExpiry_falseForNormalInit()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="formatTicks_secondsOnly()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="formatTicks_zero()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.001"/>
+  <testcase name="biomeCategory_wetBiome_favorsRain()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.008"/>
+  <testcase name="timedWeather_revertsToClearOnExpiry()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.002"/>
+  <testcase name="setTimedWeather_appliesImmediately()" classname="com.example.weathermod.common.WeatherEngineTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

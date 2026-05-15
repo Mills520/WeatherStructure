@@ -84,6 +84,11 @@ echo ""
 
 JAVA_HOME_FLAG="-Dorg.gradle.java.home=$JAVA_HOME"
 
+# Read the canonical mod version from gradle.properties so this script never
+# drifts from the real build outputs.
+MOD_VERSION=$(grep -E '^mod_version' "$ROOT_DIR/gradle.properties" | head -1 | sed -E 's/.*=[[:space:]]*//')
+if [ -z "$MOD_VERSION" ]; then MOD_VERSION="?"; fi
+
 # ── Step 1: Fabric, NeoForge, Paper (Gradle 9.2) ─────────────────────────
 echo "${YELLOW}[1/2] Building Fabric, NeoForge and Paper (Gradle 9.2)...${NC}"
 cd "$ROOT_DIR"
@@ -91,9 +96,9 @@ chmod +x gradlew
 ./gradlew :fabric:build :neoforge:build :paper:build "$JAVA_HOME_FLAG"
 
 echo ""
-echo "${GREEN}✔ Fabric:   fabric/build/libs/weather-structure-mod-fabric-1.2.0.jar${NC}"
-echo "${GREEN}✔ NeoForge: neoforge/build/libs/weather-structure-mod-neoforge-1.2.0.jar${NC}"
-echo "${GREEN}✔ Paper:    paper/build/libs/weather-structure-mod-paper-1.2.0.jar${NC}"
+echo "${GREEN}✔ Fabric:   fabric/build/libs/weather-structure-mod-fabric-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ NeoForge: neoforge/build/libs/weather-structure-mod-neoforge-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Paper:    paper/build/libs/weather-structure-mod-paper-${MOD_VERSION}.jar${NC}"
 echo ""
 
 # ── Step 2: Forge (Gradle 8.8) ────────────────────────────────────────────
@@ -103,7 +108,7 @@ chmod +x gradlew
 ./gradlew build "$JAVA_HOME_FLAG"
 
 echo ""
-echo "${GREEN}✔ Forge:    forge/build/libs/weather-structure-mod-forge-1.2.0.jar${NC}"
+echo "${GREEN}✔ Forge:    forge/build/libs/weather-structure-mod-forge-${MOD_VERSION}.jar${NC}"
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
 echo "║    All 4 JARs built successfully!                ║"

@@ -105,6 +105,27 @@ Dependency versions are centralized in Gradle version catalogs:
 
 ## Changelog
 
+### Unreleased
+- **Fix: Unreachable log path on Fabric/Forge/NeoForge** — the "Timed weather
+  expired → CLEAR" log was never printed because `isTimedWeatherActive()` is
+  always `false` after `tick()` returns. Replaced with a new
+  `WeatherEngine.wasLastTickTimedExpiry()` flag that platforms check after
+  ticking.
+- **Fix: `build-all.sh` / `build-all.bat`** — success messages were hard-coded
+  to `1.2.0.jar` even though the version is `1.4.0`. Now read
+  `mod_version` from `gradle.properties` so the output never drifts.
+- **Fix: Common module tests** — Gradle 9 no longer bundles
+  `junit-platform-launcher`. Added it as `testRuntimeOnly` so
+  `./gradlew :common:test` actually runs the suite.
+- **Optimization: Cache spawn-biome category on Fabric / Forge / NeoForge** —
+  previously the biome lookup ran 20×/sec per overworld; now cached by
+  registry key. Paper already cached this.
+- **Optimization: Reuse timer arrays in `WeatherEngine`** — when timed weather
+  expires the per-world `int[1]` countdown is now reused instead of replaced.
+- **Cleanup: `BiomeCategory` constructor** — dropped the unused `thunder`
+  weight parameter (thunder is the remaining probability mass after clear+rain).
+- **Tests** — added coverage for the new `wasLastTickTimedExpiry()` API.
+
 ### v1.4.0
 - **New: Biome-aware weather** — Weather probabilities are now weighted by
   the biome at the world's spawn point. Desert worlds see mostly clear skies,

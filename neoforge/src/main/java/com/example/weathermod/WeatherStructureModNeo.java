@@ -22,7 +22,9 @@ import net.minecraft.world.level.storage.ServerLevelData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 @Mod("weatherstructuremod")
 public class WeatherStructureModNeo {
@@ -31,6 +33,10 @@ public class WeatherStructureModNeo {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private final WeatherEngine engine = new WeatherEngine();
+
+    // Spawn-biome category is stable per world; cache by registry key to avoid
+    // a biome lookup every server tick (20×/sec).
+    private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
 
     public WeatherStructureModNeo(IEventBus modBus) {
         LOGGER.info("[WeatherStructureMod] v1.4.0 — NeoForge — Dynamic Weather & Structure Boost active.");
@@ -143,14 +149,15 @@ public class WeatherStructureModNeo {
         if (!level.dimension().equals(Level.OVERWORLD)) return;
 
         String key = level.dimension().identifier().toString();
-        BiomeCategory biomeCategory = getSpawnBiomeCategory(level);
+        BiomeCategory biomeCategory = spawnBiomeCache.computeIfAbsent(
+            key, k -> getSpawnBiomeCategory(level));
 
         WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
             applyWeatherType((ServerLevelData) level.getLevelData(), type, duration)
         );
 
         if (changed != null) {
-            if (engine.isTimedWeatherActive()) {
+            if (engine.wasLastTickTimedExpiry()) {
                 LOGGER.info("[WeatherStructureMod] Timed weather expired → CLEAR.");
             } else {
                 LOGGER.info("[WeatherStructureMod] Weather → {}.", changed);

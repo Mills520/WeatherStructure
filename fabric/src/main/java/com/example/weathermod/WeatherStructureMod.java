@@ -19,7 +19,9 @@ import net.minecraft.world.biome.Biome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class WeatherStructureMod implements ModInitializer {
 
@@ -27,6 +29,10 @@ public class WeatherStructureMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private final WeatherEngine engine = new WeatherEngine();
+
+    // Spawn-biome category is stable per world; cache by registry key to avoid
+    // a biome lookup every server tick (20×/sec).
+    private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
 
     @Override
     public void onInitialize() {
@@ -147,7 +153,8 @@ public class WeatherStructureMod implements ModInitializer {
         if (world.getRegistryKey() != World.OVERWORLD) return;
 
         String key = world.getRegistryKey().getValue().toString();
-        BiomeCategory biomeCategory = getSpawnBiomeCategory(world);
+        BiomeCategory biomeCategory = spawnBiomeCache.computeIfAbsent(
+            key, k -> getSpawnBiomeCategory(world));
 
         WeatherType changed = engine.tick(key, biomeCategory, (type, duration) -> {
             switch (type) {
@@ -158,7 +165,7 @@ public class WeatherStructureMod implements ModInitializer {
         });
 
         if (changed != null) {
-            if (engine.isTimedWeatherActive()) {
+            if (engine.wasLastTickTimedExpiry()) {
                 LOGGER.info("[WeatherStructureMod] Timed weather expired → CLEAR.");
             } else {
                 LOGGER.info("[WeatherStructureMod] Weather → {}.", changed);

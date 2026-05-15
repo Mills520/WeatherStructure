@@ -237,11 +237,11 @@ public class WeatherStructurePlugin extends JavaPlugin {
                 primaryKey, getSpawnBiomeCategory(primaryWorld)
             );
 
-            WeatherType changed = engine.tick(primaryKey, primaryBiome, (type, duration) ->
+            engine.tick(primaryKey, primaryBiome, (type, duration) ->
                 applyWeatherType(primaryWorld, type, duration)
             );
 
-            if (changed == WeatherType.CLEAR && !engine.isTimedWeatherActive()) {
+            if (engine.wasLastTickTimedExpiry()) {
                 for (int i = 1; i < overworldCache.size(); i++) {
                     applyWeatherType(overworldCache.get(i), WeatherType.CLEAR, WeatherEngine.WEATHER_DURATION);
                 }
