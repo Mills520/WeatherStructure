@@ -1,10 +1,10 @@
-# Weather & Structure Mod — Forge 1.21.11
+# Weather & Structure Mod — Forge 1.21.8 - 26.1.2
 
 ## Requirements
 | | Version |
 |---|---|
-| Minecraft | 1.21.11 |
-| Forge | 61.1.0+ (recommended) |
+| Minecraft | 1.21.8 - 26.1.2 |
+| Forge | 61.1.0+ (recommended; compiled against 1.21.11) |
 | Java | 21 |
 
 ## Building

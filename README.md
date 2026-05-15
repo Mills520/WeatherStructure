@@ -1,13 +1,14 @@
-# Weather & Structure Mod — All Platforms 1.21.11
+# Weather & Structure Mod — All Platforms
 
-One repo, one command, four JARs.
+Compatible with Minecraft **1.21.8 – 26.1.2** on Fabric, NeoForge, Forge,
+Paper, and Spigot. One repo, one command, four JARs.
 
 | JAR | Platform | Install |
 |-----|----------|---------|
-| `fabric/build/libs/weather-structure-mod-fabric-1.4.0.jar` | Fabric 0.18+ | `mods/` |
-| `neoforge/build/libs/weather-structure-mod-neoforge-1.4.0.jar` | NeoForge 21.11+ | `mods/` |
-| `forge/build/libs/weather-structure-mod-forge-1.4.0.jar` | Forge 61.1+ | `mods/` |
-| `paper/build/libs/weather-structure-mod-paper-1.4.0.jar` | Paper/Spigot 1.21.11 | `plugins/` |
+| `fabric/build/libs/weather-structure-mod-fabric-1.5.0.jar` | Fabric 0.18+ | `mods/` |
+| `neoforge/build/libs/weather-structure-mod-neoforge-1.5.0.jar` | NeoForge 21.8+ | `mods/` |
+| `forge/build/libs/weather-structure-mod-forge-1.5.0.jar` | Forge 61.1+ | `mods/` |
+| `paper/build/libs/weather-structure-mod-paper-1.5.0.jar` | Paper/Spigot 1.21.8 – 26.1.2 | `plugins/` |
 
 ---
 
@@ -105,7 +106,14 @@ Dependency versions are centralized in Gradle version catalogs:
 
 ## Changelog
 
-### Unreleased
+### v1.5.0
+- **Expanded Minecraft compatibility** — Mod now accepts any MC version in
+  the range **1.21.8 – 26.1.2** across Fabric, NeoForge, Forge, Paper, and
+  Spigot. Manifests on all four platforms have been widened (Fabric uses a
+  disjunction of `>=1.21.8 <=1.21.11` and `>=26.1 <=26.1.2`; Forge/NeoForge
+  use `[1.21.8,26.1.3)`; Paper keeps `api-version: '1.21'` which spans the
+  whole range). Jars are still compiled against 1.21.11 / NeoForge 21.11 /
+  Forge 61.1 — only the runtime-accepted range changed.
 - **Fix: Unreachable log path on Fabric/Forge/NeoForge** — the "Timed weather
   expired → CLEAR" log was never printed because `isTimedWeatherActive()` is
   always `false` after `tick()` returns. Replaced with a new
