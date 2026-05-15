@@ -117,7 +117,8 @@ chmod +x gradlew
 
 # ── Step 1: 1.21.x line (Java 21) ───────────────────────────────────────
 echo "${YELLOW}[1/3] Building Fabric/NeoForge/Paper for MC 1.21.x (Java 21, Gradle 9.2)...${NC}"
-./gradlew :fabric:build :neoforge:build :paper:build "-Dorg.gradle.java.home=$JAVA21_HOME"
+./gradlew :fabric:build :neoforge:build :paper:build \
+    "-Dwsm.line=1.21" "-Dorg.gradle.java.home=$JAVA21_HOME"
 
 echo ""
 echo "${GREEN}✔ Fabric 1.21.x:    fabric/build/libs/weather-structure-mod-fabric-${MOD_VERSION}.jar${NC}"
@@ -130,7 +131,8 @@ echo ""
 
 # ── Step 2: 26.1.x line (Java 25) ───────────────────────────────────────
 echo "${YELLOW}[2/3] Building Fabric/NeoForge/Paper for MC 26.1.x (Java 25, Gradle 9.2)...${NC}"
-./gradlew :fabric-26x:build :neoforge-26x:build :paper-26x:build "-Dorg.gradle.java.home=$JAVA25_HOME"
+./gradlew :fabric-26x:build :neoforge-26x:build :paper-26x:build \
+    "-Dwsm.line=26x" "-Dorg.gradle.java.home=$JAVA25_HOME"
 
 echo ""
 echo "${GREEN}✔ Fabric 26.1.x:    fabric-26x/build/libs/weather-structure-mod-fabric-26x-${MOD_VERSION}.jar${NC}"

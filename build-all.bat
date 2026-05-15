@@ -95,7 +95,7 @@ REM -- Step 1: 1.21.x line (Java 21) ------------------------------------
 echo [1/3] Building Fabric/NeoForge/Paper for MC 1.21.x ^(Java 21, Gradle 9.2^)...
 echo [1/3] 1.21.x build starting >> "%LOGFILE%"
 
-call gradlew.bat :fabric:build :neoforge:build :paper:build "-Dorg.gradle.java.home=!JAVA21_HOME!" >> "%LOGFILE%" 2>&1
+call gradlew.bat :fabric:build :neoforge:build :paper:build "-Dwsm.line=1.21" "-Dorg.gradle.java.home=!JAVA21_HOME!" >> "%LOGFILE%" 2>&1
 set STEP1_ERR=!errorlevel!
 if !STEP1_ERR! neq 0 (
     echo.
@@ -118,7 +118,7 @@ REM Stop the daemon from step 1 - it was started under Java 21 and will refuse
 REM to run the Java 25 build.
 call "%ROOT%gradlew.bat" --stop >nul 2>&1
 
-call gradlew.bat :fabric-26x:build :neoforge-26x:build :paper-26x:build "-Dorg.gradle.java.home=!JAVA25_HOME!" >> "%LOGFILE%" 2>&1
+call gradlew.bat :fabric-26x:build :neoforge-26x:build :paper-26x:build "-Dwsm.line=26x" "-Dorg.gradle.java.home=!JAVA25_HOME!" >> "%LOGFILE%" 2>&1
 set STEP2_ERR=!errorlevel!
 if !STEP2_ERR! neq 0 (
     echo.
