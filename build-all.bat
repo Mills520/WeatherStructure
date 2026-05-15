@@ -166,9 +166,13 @@ exit /b 0
 
 REM ════════════════════════════════════════════════════════════════════
 REM  find_java <major> <output_var>
-REM  Searches for a JDK whose 'java -version' output starts with the
-REM  requested major version. Sets the named env var to the JDK home, or
-REM  leaves it empty if not found.
+REM  Locates a JDK whose `java -version` reports the requested major
+REM  version. Sets the named env var to the JDK home, or leaves it
+REM  empty if not found.
+REM
+REM  Detection extracts the version string from `java -version` and
+REM  compares the major component numerically, so it handles every
+REM  shape the JDK emits ("25", "25.0.1", "25-ea", "25+9-LTS", ...).
 REM ════════════════════════════════════════════════════════════════════
 :find_java
 set "_FIND_MAJOR=%~1"
@@ -177,11 +181,11 @@ set "_FIND_RESULT="
 
 echo Searching for Java %_FIND_MAJOR%...
 
-REM 1) Check JAVA_HOME for an exact match
+REM 1) Check JAVA_HOME first
 if defined JAVA_HOME (
     if exist "%JAVA_HOME%\bin\java.exe" (
-        "%JAVA_HOME%\bin\java.exe" -version 2>&1 | findstr /r /c:"\"%_FIND_MAJOR%\." >nul
-        if !errorlevel! equ 0 (
+        call :java_major "%JAVA_HOME%\bin\java.exe"
+        if "!_JAVA_MAJOR!"=="%_FIND_MAJOR%" (
             set "_FIND_RESULT=%JAVA_HOME%"
             echo   Found via JAVA_HOME: %JAVA_HOME%
             goto :find_java_done
@@ -199,18 +203,14 @@ for %%d in (
     "C:\Program Files\Zulu"
 ) do (
     if exist "%%~d" (
-        for /d %%j in ("%%~d\jdk-%_FIND_MAJOR%.*") do (
+        for /d %%j in ("%%~d\jdk-%_FIND_MAJOR%*" "%%~d\jdk%_FIND_MAJOR%*") do (
             if exist "%%j\bin\java.exe" (
-                set "_FIND_RESULT=%%j"
-                echo   Found via scan: %%j
-                goto :find_java_done
-            )
-        )
-        for /d %%j in ("%%~d\jdk%_FIND_MAJOR%.*") do (
-            if exist "%%j\bin\java.exe" (
-                set "_FIND_RESULT=%%j"
-                echo   Found via scan: %%j
-                goto :find_java_done
+                call :java_major "%%j\bin\java.exe"
+                if "!_JAVA_MAJOR!"=="%_FIND_MAJOR%" (
+                    set "_FIND_RESULT=%%j"
+                    echo   Found via scan: %%j
+                    goto :find_java_done
+                )
             )
         )
     )
@@ -218,4 +218,27 @@ for %%d in (
 
 :find_java_done
 set "%_FIND_OUT%=%_FIND_RESULT%"
+exit /b 0
+
+
+REM ════════════════════════════════════════════════════════════════════
+REM  java_major <java.exe path>
+REM  Runs `java -version`, extracts the quoted version string from the
+REM  first line ("<vendor> version "<v>" ..."), and leaves the leading
+REM  numeric component in !_JAVA_MAJOR!. Handles "25", "25.0.1",
+REM  "25-ea", "25+9-LTS", etc.
+REM ════════════════════════════════════════════════════════════════════
+:java_major
+set "_JAVA_MAJOR="
+set "_JAVA_RAW="
+REM Only the first line of `java -version` has '<vendor> version "<ver>"';
+REM subsequent lines describe the runtime/VM. Capture token 3 of line 1 only.
+for /f "tokens=3" %%v in ('""%~1" -version 2^>^&1') do (
+    if not defined _JAVA_RAW set "_JAVA_RAW=%%v"
+)
+if not defined _JAVA_RAW exit /b 0
+REM Strip surrounding double quotes
+set "_JAVA_RAW=!_JAVA_RAW:"=!"
+REM Take the leading numeric component (everything before . + or -)
+for /f "tokens=1 delims=.+-" %%m in ("!_JAVA_RAW!") do set "_JAVA_MAJOR=%%m"
 exit /b 0

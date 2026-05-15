@@ -21,16 +21,25 @@ echo "║    1.21.x line (Java 21) + 26.1.x line (Java 25) ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
+# ── java_major <java_bin> → echoes the reported major version (e.g. "25") ──
+# Extracts the version string from `java -version` and returns just the
+# leading numeric component. Robust against all the shapes the JDK emits:
+#   "25"           (GA, no patch suffix)
+#   "25.0.1"       (point release)
+#   "25-ea"        (early access)
+#   "25+9-LTS"     (build metadata)
+java_major() {
+    "$1" -version 2>&1 | head -1 \
+        | sed -E 's/.*version "([^"]+)".*/\1/' \
+        | sed -E 's/[.+-].*$//'
+}
+
 # ── find_java <major_version> → echoes the JDK home, empty if not found ──
 find_java() {
     target_major="$1"
     found=""
 
-    # 1) Check JAVA_HOME first (only if a positional arg isn't passed; we keep
-    #    this for the script's auto-detect behaviour). For per-version search
-    #    we skip JAVA_HOME because it's ambiguous when two JDKs are needed.
-
-    # 2) Scan common Linux/macOS JDK locations
+    # 1) Scan common Linux/macOS JDK locations
     for base in \
         /usr/lib/jvm \
         /usr/java \
@@ -49,7 +58,7 @@ find_java() {
                     else
                         continue
                     fi
-                    if "$cand/bin/java" -version 2>&1 | grep -q "\"$target_major\\."; then
+                    if [ "$(java_major "$cand/bin/java")" = "$target_major" ]; then
                         found="$cand"
                         break 2
                     fi
@@ -58,9 +67,9 @@ find_java() {
         fi
     done
 
-    # 3) If JAVA_HOME points to the requested version, accept it
+    # 2) If JAVA_HOME points to the requested version, accept it
     if [ -z "$found" ] && [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
-        if "$JAVA_HOME/bin/java" -version 2>&1 | grep -q "\"$target_major\\."; then
+        if [ "$(java_major "$JAVA_HOME/bin/java")" = "$target_major" ]; then
             found="$JAVA_HOME"
         fi
     fi
