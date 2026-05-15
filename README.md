@@ -32,6 +32,15 @@ on 1.21.x and vice versa — pick the jar that matches your MC version.
 
 ## Build — one command
 
+Requirements (the script will exit with a clear error if either is missing):
+
+| JDK | Used for |
+|---|---|
+| **Java 21** | 1.21.x line (Fabric / NeoForge / Paper / Forge) |
+| **Java 25** | 26.1.x line (MC 26.x enforces Java 25 at Loom configuration) |
+
+Install both from https://adoptium.net (or any other vendor).
+
 **Linux / macOS:**
 ```bash
 chmod +x build-all.sh
@@ -43,7 +52,9 @@ chmod +x build-all.sh
 build-all.bat
 ```
 
-The script handles both Gradle versions automatically.
+The script auto-detects both JDKs, runs three sequential Gradle invocations
+(Java 21 for 1.21.x → Java 25 for 26.1.x → Java 21 for Forge), and produces
+all 7 jars.
 
 ---
 
@@ -52,14 +63,16 @@ The script handles both Gradle versions automatically.
 | Subproject | Gradle | Reason |
 |-----------|--------|--------|
 | common | 9.2.0 | Shared Java library — no Minecraft deps |
-| fabric | 9.2.0 | Fabric Loom 1.14 requires Gradle 9.2 |
-| neoforge | 9.2.0 | ModDevGradle 2.x requires Gradle 9.2 |
-| paper | 9.2.0 | Standard Java plugin, works anywhere |
+| fabric / fabric-26x | 9.2.0 | Fabric Loom 1.14 / 1.15 requires Gradle 9.2 |
+| neoforge / neoforge-26x | 9.2.0 | ModDevGradle 2.x requires Gradle 9.2 |
+| paper / paper-26x | 9.2.0 | Standard Java plugin, works anywhere |
 | forge | 8.8 | ForgeGradle 6 only supports Gradle 8.x |
 
 Fabric/NeoForge/Paper/Common share one Gradle 9.2 multi-project build.
 Forge is a standalone Gradle 8.8 project in forge/ (includes common sources via `srcDirs`).
-build-all.sh / build-all.bat runs both in sequence automatically.
+The 1.21.x line builds under Java 21, the 26.1.x line under Java 25;
+`build-all.sh` / `build-all.bat` runs each step with the correct JDK
+automatically.
 
 ---
 
