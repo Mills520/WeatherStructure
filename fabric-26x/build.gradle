@@ -8,9 +8,15 @@ base { archivesName = "weather-structure-mod-fabric-26x" }
 
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version_26x}"
-    // Yarn is final at 1.21.11. From 26.x onward Mojang ships the deobfuscated
-    // source, so we use the official Mojang mappings directly.
-    mappings loom.officialMojangMappings()
+    // MC 26.x ships pre-deobfuscated (yarn was final at 1.21.11, the last
+    // obfuscated version), so Mojang no longer publishes a `client_mappings`
+    // file. `loom.officialMojangMappings()` looks for it and fails with
+    //     "Failed to find official mojang mappings for 26.1.2"
+    // Use Fabric's intermediary mappings directly instead; the MC jar is
+    // already mojang-named, so the "named" side of intermediary maps the
+    // mojang source we write to the intermediary class names Fabric uses
+    // at runtime (the `net.minecraft.class_NNNN` form).
+    mappings "net.fabricmc:intermediary:${minecraft_version_26x}:v2"
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_26x}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_26x}"
 
