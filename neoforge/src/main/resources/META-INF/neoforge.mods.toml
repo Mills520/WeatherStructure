@@ -9,19 +9,19 @@ displayName = "Weather & Structure Mod"
 logoFile    = "assets/weatherstructuremod/icon.png"
 description = '''
 Biome-aware weather cycling (30-60 min), structure boost (+15%),
-timed weather & forecast commands. NeoForge edition for Minecraft 1.21.8 - 26.1.2.
+timed weather & forecast commands. NeoForge edition for Minecraft 1.21.8 - 1.21.11.
 '''
 
 [[dependencies.weatherstructuremod]]
     modId        = "neoforge"
     type         = "required"
-    versionRange = "[21.8,27)"
+    versionRange = "[21.8,22)"
     ordering     = "NONE"
     side         = "BOTH"
 
 [[dependencies.weatherstructuremod]]
     modId        = "minecraft"
     type         = "required"
-    versionRange = "[1.21.8,26.1.3)"
+    versionRange = "[1.21.8,1.22)"
     ordering     = "NONE"
     side         = "BOTH"

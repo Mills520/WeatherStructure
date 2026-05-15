@@ -89,16 +89,22 @@ JAVA_HOME_FLAG="-Dorg.gradle.java.home=$JAVA_HOME"
 MOD_VERSION=$(grep -E '^mod_version' "$ROOT_DIR/gradle.properties" | head -1 | sed -E 's/.*=[[:space:]]*//')
 if [ -z "$MOD_VERSION" ]; then MOD_VERSION="?"; fi
 
-# ── Step 1: Fabric, NeoForge, Paper (Gradle 9.2) ─────────────────────────
-echo "${YELLOW}[1/2] Building Fabric, NeoForge and Paper (Gradle 9.2)...${NC}"
+# ── Step 1: Fabric, NeoForge, Paper — 1.21.x AND 26.1.x lines (Gradle 9.2) ──
+echo "${YELLOW}[1/2] Building Fabric, NeoForge and Paper for both MC lines (Gradle 9.2)...${NC}"
 cd "$ROOT_DIR"
 chmod +x gradlew
-./gradlew :fabric:build :neoforge:build :paper:build "$JAVA_HOME_FLAG"
+./gradlew \
+    :fabric:build :neoforge:build :paper:build \
+    :fabric-26x:build :neoforge-26x:build :paper-26x:build \
+    "$JAVA_HOME_FLAG"
 
 echo ""
-echo "${GREEN}✔ Fabric:   fabric/build/libs/weather-structure-mod-fabric-${MOD_VERSION}.jar${NC}"
-echo "${GREEN}✔ NeoForge: neoforge/build/libs/weather-structure-mod-neoforge-${MOD_VERSION}.jar${NC}"
-echo "${GREEN}✔ Paper:    paper/build/libs/weather-structure-mod-paper-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Fabric 1.21.x:    fabric/build/libs/weather-structure-mod-fabric-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ NeoForge 1.21.x:  neoforge/build/libs/weather-structure-mod-neoforge-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Paper 1.21.x:     paper/build/libs/weather-structure-mod-paper-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Fabric 26.1.x:    fabric-26x/build/libs/weather-structure-mod-fabric-26x-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ NeoForge 26.1.x:  neoforge-26x/build/libs/weather-structure-mod-neoforge-26x-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Paper 26.1.x:     paper-26x/build/libs/weather-structure-mod-paper-26x-${MOD_VERSION}.jar${NC}"
 echo ""
 
 # ── Step 2: Forge (Gradle 8.8) ────────────────────────────────────────────
@@ -108,15 +114,15 @@ chmod +x gradlew
 ./gradlew build "$JAVA_HOME_FLAG"
 
 echo ""
-echo "${GREEN}✔ Forge:    forge/build/libs/weather-structure-mod-forge-${MOD_VERSION}.jar${NC}"
+echo "${GREEN}✔ Forge 1.21.x:     forge/build/libs/weather-structure-mod-forge-${MOD_VERSION}.jar${NC}"
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║    All 4 JARs built successfully!                ║"
+echo "║    All 7 JARs built successfully!                ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 echo "Installation:"
-echo "  Fabric JAR   → <instance>/mods/"
-echo "  NeoForge JAR → <instance>/mods/"
-echo "  Forge JAR    → <instance>/mods/"
-echo "  Paper JAR    → <server>/plugins/"
+echo "  Fabric / NeoForge / Forge JAR   → <instance>/mods/"
+echo "  Paper JAR                       → <server>/plugins/"
+echo ""
+echo "Pick the JAR matching your Minecraft version (1.21.x or 26.1.x)."
 echo ""
