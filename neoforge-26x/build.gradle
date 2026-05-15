@@ -1,0 +1,49 @@
+plugins {
+    id 'net.neoforged.moddev' version "${moddevgradle_version}"
+}
+
+version   = "${mod_version}"
+group     = maven_group
+base { archivesName = "weather-structure-mod-neoforge-26x" }
+
+// Share the platform source with the 1.21.x NeoForge module — both use
+// official Mojang mappings and the same NeoForge event APIs. If a future
+// NeoForge release breaks compatibility, fork this source into
+// neoforge-26x/src/main/java instead.
+sourceSets.main.java.srcDirs += '../neoforge/src/main/java'
+
+neoForge {
+    version = "${neoforge_version_26x}"
+
+    mods {
+        weatherstructuremod {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    implementation project(':common')
+    jarJar(project(':common')) { version { prefer mod_version } }
+}
+
+def targetJava = 21
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release  = targetJava
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
+
+jar {
+    manifest {
+        attributes(["MixinConfigs": "weatherstructuremod-neoforge.mixins.json"])
+    }
+    from("${rootProject.projectDir}/LICENSE") {
+        rename { "${it}_${base.archivesName.get()}" }
+    }
+}

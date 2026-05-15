@@ -125,13 +125,13 @@ REM Trim leading spaces
 for /f "tokens=* delims= " %%v in ("%MOD_VERSION%") do set "MOD_VERSION=%%v"
 if "%MOD_VERSION%"=="" set "MOD_VERSION=?"
 
-REM ── Step 1: Fabric, NeoForge, Paper ──────────────────────────────────
-echo [1/2] Building Fabric, NeoForge and Paper ^(Gradle 9.2^)...
+REM ── Step 1: Fabric, NeoForge, Paper — 1.21.x AND 26.1.x lines ────────
+echo [1/2] Building Fabric, NeoForge and Paper for both MC lines ^(Gradle 9.2^)...
 echo [1/2] Fabric+NeoForge+Paper build starting >> "%LOGFILE%"
 
 cd /d "%ROOT%"
 REM Pass -Dorg.gradle.java.home to force Gradle to use OUR Java 21, not any toolchain
-call gradlew.bat :fabric:build :neoforge:build :paper:build "-Dorg.gradle.java.home=%JAVA_HOME%" >> "%LOGFILE%" 2>&1
+call gradlew.bat :fabric:build :neoforge:build :paper:build :fabric-26x:build :neoforge-26x:build :paper-26x:build "-Dorg.gradle.java.home=%JAVA_HOME%" >> "%LOGFILE%" 2>&1
 set STEP1_ERR=%errorlevel%
 
 if %STEP1_ERR% neq 0 (
@@ -142,9 +142,12 @@ if %STEP1_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Fabric:   fabric\build\libs\weather-structure-mod-fabric-%MOD_VERSION%.jar
-echo [OK] NeoForge: neoforge\build\libs\weather-structure-mod-neoforge-%MOD_VERSION%.jar
-echo [OK] Paper:    paper\build\libs\weather-structure-mod-paper-%MOD_VERSION%.jar
+echo [OK] Fabric 1.21.x:    fabric\build\libs\weather-structure-mod-fabric-%MOD_VERSION%.jar
+echo [OK] NeoForge 1.21.x:  neoforge\build\libs\weather-structure-mod-neoforge-%MOD_VERSION%.jar
+echo [OK] Paper 1.21.x:     paper\build\libs\weather-structure-mod-paper-%MOD_VERSION%.jar
+echo [OK] Fabric 26.1.x:    fabric-26x\build\libs\weather-structure-mod-fabric-26x-%MOD_VERSION%.jar
+echo [OK] NeoForge 26.1.x:  neoforge-26x\build\libs\weather-structure-mod-neoforge-26x-%MOD_VERSION%.jar
+echo [OK] Paper 26.1.x:     paper-26x\build\libs\weather-structure-mod-paper-26x-%MOD_VERSION%.jar
 echo.
 
 REM ── Step 2: Forge ────────────────────────────────────────────────────
@@ -169,15 +172,17 @@ if %STEP2_ERR% neq 0 (
     exit /b 1
 )
 
-echo [OK] Forge: forge\build\libs\weather-structure-mod-forge-%MOD_VERSION%.jar
+echo [OK] Forge 1.21.x:     forge\build\libs\weather-structure-mod-forge-%MOD_VERSION%.jar
 echo.
 echo ====================================================
-echo  All 4 JARs built successfully!
+echo  All 7 JARs built successfully!
 echo ====================================================
 echo.
 echo Installation:
 echo   Fabric / NeoForge / Forge JAR  --^>  mods\
 echo   Paper JAR                       --^>  plugins\
+echo.
+echo Pick the JAR matching your Minecraft version ^(1.21.x or 26.1.x^).
 echo.
 echo SUCCESS >> "%LOGFILE%"
 exit /b 0

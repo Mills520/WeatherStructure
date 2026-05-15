@@ -1,0 +1,43 @@
+plugins {
+    id 'fabric-loom' version "${fabric_loom_26x}"
+}
+
+version   = "${mod_version}"
+group     = maven_group
+base { archivesName = "weather-structure-mod-fabric-26x" }
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version_26x}"
+    // Yarn is final at 1.21.11. From 26.x onward Mojang ships the deobfuscated
+    // source, so we use the official Mojang mappings directly.
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_26x}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_26x}"
+
+    implementation project(':common')
+    include project(':common')
+}
+
+processResources {
+    inputs.property "version", project.version
+    filteringCharset "UTF-8"
+    filesMatching("fabric.mod.json") { expand "version": project.version }
+}
+
+def targetJava = 21
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release  = targetJava
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
+
+jar {
+    from("${rootProject.projectDir}/LICENSE") {
+        rename { "${it}_${base.archivesName.get()}" }
+    }
+}

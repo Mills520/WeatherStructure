@@ -1,14 +1,32 @@
 # Weather & Structure Mod — All Platforms
 
-Compatible with Minecraft **1.21.8 – 26.1.2** on Fabric, NeoForge, Forge,
-Paper, and Spigot. One repo, one command, four JARs.
+Compatible with Minecraft **1.21.8 – 1.21.11** and **26.1 – 26.1.2** on
+Fabric, NeoForge, Forge, Paper, and Spigot. One repo, one command, seven
+JARs (one per platform/MC-line combination).
+
+### MC 1.21.x line — yarn / 1.21.x APIs
 
 | JAR | Platform | Install |
 |-----|----------|---------|
-| `fabric/build/libs/weather-structure-mod-fabric-1.5.0.jar` | Fabric 0.18+ | `mods/` |
-| `neoforge/build/libs/weather-structure-mod-neoforge-1.5.0.jar` | NeoForge 21.8+ | `mods/` |
-| `forge/build/libs/weather-structure-mod-forge-1.5.0.jar` | Forge 61.1+ | `mods/` |
-| `paper/build/libs/weather-structure-mod-paper-1.5.0.jar` | Paper/Spigot 1.21.8 – 26.1.2 | `plugins/` |
+| `fabric/build/libs/weather-structure-mod-fabric-1.5.0.jar` | Fabric 0.18+ on MC 1.21.8 – 1.21.11 | `mods/` |
+| `neoforge/build/libs/weather-structure-mod-neoforge-1.5.0.jar` | NeoForge 21.8+ on MC 1.21.8 – 1.21.11 | `mods/` |
+| `forge/build/libs/weather-structure-mod-forge-1.5.0.jar` | Forge 61.1+ on MC 1.21.8 – 1.21.11 | `mods/` |
+| `paper/build/libs/weather-structure-mod-paper-1.5.0.jar` | Paper/Spigot 1.21.8 – 1.21.11 | `plugins/` |
+
+### MC 26.1.x line — mojang official mappings
+
+Yarn was retired after MC 1.21.11, so the 26.1.x jars are a separate build
+compiled against MC 26.1.2 with mojang official mappings. They cannot run
+on 1.21.x and vice versa — pick the jar that matches your MC version.
+
+| JAR | Platform | Install |
+|-----|----------|---------|
+| `fabric-26x/build/libs/weather-structure-mod-fabric-26x-1.5.0.jar` | Fabric 0.19+ on MC 26.1 – 26.1.2 | `mods/` |
+| `neoforge-26x/build/libs/weather-structure-mod-neoforge-26x-1.5.0.jar` | NeoForge 26.1+ on MC 26.1 – 26.1.2 | `mods/` |
+| `paper-26x/build/libs/weather-structure-mod-paper-26x-1.5.0.jar` | Paper/Spigot 26.1 – 26.1.2 | `plugins/` |
+
+> Forge does not yet have a 26.x release; the 26.1.x line ships Fabric,
+> NeoForge, and Paper only.
 
 ---
 
@@ -107,13 +125,20 @@ Dependency versions are centralized in Gradle version catalogs:
 ## Changelog
 
 ### v1.5.0
-- **Expanded Minecraft compatibility** — Mod now accepts any MC version in
-  the range **1.21.8 – 26.1.2** across Fabric, NeoForge, Forge, Paper, and
-  Spigot. Manifests on all four platforms have been widened (Fabric uses a
-  disjunction of `>=1.21.8 <=1.21.11` and `>=26.1 <=26.1.2`; Forge/NeoForge
-  use `[1.21.8,26.1.3)`; Paper keeps `api-version: '1.21'` which spans the
-  whole range). Jars are still compiled against 1.21.11 / NeoForge 21.11 /
-  Forge 61.1 — only the runtime-accepted range changed.
+- **Expanded Minecraft compatibility (dual builds)** — Adds a parallel set
+  of 26.1.x JARs alongside the existing 1.21.x JARs, because yarn was
+  retired after MC 1.21.11 and the 1.21.x bytecode references intermediary
+  class names (`net.minecraft.class_NNNN`) that no longer exist on 26.x.
+  - **1.21.x line:** `fabric/`, `neoforge/`, `forge/`, `paper/` — yarn /
+    1.21.x APIs. Manifests accept MC `[1.21.8, 1.22)`.
+  - **26.1.x line:** new `fabric-26x/`, `neoforge-26x/`, `paper-26x/`
+    subprojects — mojang official mappings, fabric-loader 0.19+,
+    fabric-api 0.149+ / NeoForge 26.x / paper-api 26.1.2. Manifests accept
+    MC `[26.1, 26.1.3)`.
+  - `paper-26x` and `neoforge-26x` share source with their 1.21.x
+    siblings via Gradle `srcDirs` (Bukkit API is stable, and NeoForge
+    21.x ↔ 26.x event APIs are unchanged). `fabric-26x` has its own
+    source because yarn → mojang renames affect every import.
 - **Fix: Unreachable log path on Fabric/Forge/NeoForge** — the "Timed weather
   expired → CLEAR" log was never printed because `isTimedWeatherActive()` is
   always `false` after `tick()` returns. Replaced with a new
