@@ -88,7 +88,7 @@ chmod +x gradlew
 
 echo "${YELLOW}Building Fabric/NeoForge/Paper (Java 25, Gradle 9.2)...${NC}"
 ./gradlew :fabric:build :neoforge:build :paper:build \
-    "-Dorg.gradle.java.home=$JAVA25_HOME"
+    "-Dorg.gradle.java.home=$JAVA25_HOME" --stacktrace
 
 echo ""
 echo "${GREEN}OK Fabric:   fabric/build/libs/weather-structure-mod-fabric-${MOD_VERSION}.jar${NC}"
