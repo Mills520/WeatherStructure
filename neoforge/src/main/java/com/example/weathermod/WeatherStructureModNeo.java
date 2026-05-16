@@ -18,7 +18,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.storage.ServerLevelData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +87,7 @@ public class WeatherStructureModNeo {
         int ticks = seconds * 20;
 
         engine.setTimedWeather(weatherType, ticks, (wt, duration) ->
-            applyWeatherType((ServerLevelData) level.getLevelData(), wt, duration)
+            applyWeatherType(level, wt, duration)
         );
 
         source.sendSuccess(() -> Component.literal(
@@ -153,7 +152,7 @@ public class WeatherStructureModNeo {
             key, k -> getSpawnBiomeCategory(level));
 
         WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
-            applyWeatherType((ServerLevelData) level.getLevelData(), type, duration)
+            applyWeatherType(level, type, duration)
         );
 
         if (changed != null) {
@@ -167,29 +166,15 @@ public class WeatherStructureModNeo {
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
-    private void applyWeatherType(ServerLevelData data, WeatherType type, int duration) {
+    // setWeatherParameters(clearTime, weatherTime, isRaining, isThundering)
+    // is the stable ServerLevel API for setting weather state; it's a thin
+    // wrapper over the ServerLevelData setters that got removed from the
+    // public interface in MC 26.x.
+    private void applyWeatherType(ServerLevel level, WeatherType type, int duration) {
         switch (type) {
-            case CLEAR -> {
-                data.setRaining(false);
-                data.setThundering(false);
-                data.setClearWeatherTime(duration);
-                data.setRainTime(0);
-                data.setThunderTime(0);
-            }
-            case RAIN -> {
-                data.setRaining(true);
-                data.setThundering(false);
-                data.setClearWeatherTime(0);
-                data.setRainTime(duration);
-                data.setThunderTime(0);
-            }
-            case THUNDER -> {
-                data.setRaining(true);
-                data.setThundering(true);
-                data.setClearWeatherTime(0);
-                data.setRainTime(duration);
-                data.setThunderTime(duration);
-            }
+            case CLEAR   -> level.setWeatherParameters(duration, 0,        false, false);
+            case RAIN    -> level.setWeatherParameters(0,        duration, true,  false);
+            case THUNDER -> level.setWeatherParameters(0,        duration, true,  true);
         }
     }
 
