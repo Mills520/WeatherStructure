@@ -79,7 +79,7 @@ cd /d "%ROOT%"
 echo Building Fabric/NeoForge/Paper ^(Java 25, Gradle 9.2^)...
 echo Build starting >> "%LOGFILE%"
 
-call gradlew.bat :fabric:build :neoforge:build :paper:build "-Dorg.gradle.java.home=!JAVA25_HOME!" >> "%LOGFILE%" 2>&1
+call gradlew.bat :fabric:build :neoforge:build :paper:build "-Dorg.gradle.java.home=!JAVA25_HOME!" --stacktrace >> "%LOGFILE%" 2>&1
 set BUILD_ERR=!errorlevel!
 if !BUILD_ERR! neq 0 (
     echo.
