@@ -32,10 +32,29 @@ if (!intermediaryJar.exists()) {
     def url = "https://maven.fabricmc.net/net/fabricmc/intermediary/${minecraft_version_26x}/intermediary-${minecraft_version_26x}-v2.jar"
     println "[fabric-26x] downloading intermediary: ${url}"
     def tmp = new File(intermediaryDir, "intermediary.jar.part")
-    new URL(url).withInputStream { input ->
-        tmp.withOutputStream { output -> output << input }
+    try {
+        new URL(url).withInputStream { input ->
+            tmp.withOutputStream { output -> output << input }
+        }
+        // java.nio.Files.move throws IOException on failure (unlike
+        // File.renameTo which silently returns false on AV/file-lock
+        // interference on Windows). Fall back to REPLACE_EXISTING in case
+        // a parallel build raced us; the content is identical.
+        java.nio.file.Files.move(
+            tmp.toPath(),
+            intermediaryJar.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+    } catch (Throwable t) {
+        tmp.delete()
+        intermediaryJar.delete()
+        throw new GradleException(
+            "[fabric-26x] failed to download intermediary jar from ${url}: ${t.message}", t)
     }
-    tmp.renameTo(intermediaryJar)
+    if (!intermediaryJar.exists()) {
+        throw new GradleException(
+            "[fabric-26x] intermediary jar missing after download: ${intermediaryJar}")
+    }
     println "[fabric-26x] saved: ${intermediaryJar}"
 }
 
