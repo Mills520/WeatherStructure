@@ -29,17 +29,49 @@ def intermediaryDir  = file("${gradle.gradleUserHomeDir}/wsm-intermediary-cache/
 def intermediaryJar  = new File(intermediaryDir, "intermediary-${minecraft_version_26x}-v2.jar")
 if (!intermediaryJar.exists()) {
     intermediaryDir.mkdirs()
-    def url = "https://maven.fabricmc.net/net/fabricmc/intermediary/${minecraft_version_26x}/intermediary-${minecraft_version_26x}-v2.jar"
-    println "[fabric-26x] downloading intermediary: ${url}"
-    def tmp = new File(intermediaryDir, "intermediary.jar.part")
-    try {
-        new URL(url).withInputStream { input ->
-            tmp.withOutputStream { output -> output << input }
+    // Fabric's intermediary maven layout has changed across MC versions:
+    //   pre-1.21.x:  intermediary-VER-v2.jar (classifier "v2")
+    //   post-1.21.x: intermediary-VER.jar    (no classifier; v2 format is default)
+    // The Prism runtime log for MC 26.1.2 showed the no-classifier filename,
+    // so try that first and fall back to the older classifier layout.
+    def base = "https://maven.fabricmc.net/net/fabricmc/intermediary/${minecraft_version_26x}"
+    def candidates = [
+        "${base}/intermediary-${minecraft_version_26x}.jar",
+        "${base}/intermediary-${minecraft_version_26x}-v2.jar",
+    ]
+    def tmp     = new File(intermediaryDir, "intermediary.jar.part")
+    def errors  = []
+    def sourceUrl = null
+    for (url in candidates) {
+        try {
+            def conn = new URL(url).openConnection()
+            conn.setRequestProperty('User-Agent', 'wsm-build/1.5.0')
+            conn.setConnectTimeout(30_000)
+            conn.setReadTimeout(60_000)
+            def code = conn.getResponseCode()
+            if (code != 200) {
+                errors << "${code} ${url}"
+                continue
+            }
+            println "[fabric-26x] downloading intermediary: ${url}"
+            conn.inputStream.withStream { input ->
+                tmp.withOutputStream { output -> output << input }
+            }
+            sourceUrl = url
+            break
+        } catch (Throwable t) {
+            errors << "${t.class.simpleName}: ${t.message} (${url})"
         }
-        // java.nio.Files.move throws IOException on failure (unlike
-        // File.renameTo which silently returns false on AV/file-lock
-        // interference on Windows). Fall back to REPLACE_EXISTING in case
-        // a parallel build raced us; the content is identical.
+    }
+    if (sourceUrl == null) {
+        tmp.delete()
+        throw new GradleException(
+            "[fabric-26x] could not download Fabric intermediary mappings for " +
+            "${minecraft_version_26x}. Tried:\n  - " + errors.join('\n  - '))
+    }
+    try {
+        // java.nio.Files.move throws on failure (unlike File.renameTo which
+        // silently returns false on Windows AV / file-lock interference).
         java.nio.file.Files.move(
             tmp.toPath(),
             intermediaryJar.toPath(),
@@ -49,7 +81,8 @@ if (!intermediaryJar.exists()) {
         tmp.delete()
         intermediaryJar.delete()
         throw new GradleException(
-            "[fabric-26x] failed to download intermediary jar from ${url}: ${t.message}", t)
+            "[fabric-26x] failed to install intermediary jar at " +
+            "${intermediaryJar}: ${t.message}", t)
     }
     if (!intermediaryJar.exists()) {
         throw new GradleException(
