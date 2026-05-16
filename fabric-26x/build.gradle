@@ -6,26 +6,42 @@ version   = "${mod_version}"
 group     = maven_group
 base { archivesName = "weather-structure-mod-fabric-26x" }
 
+// ── Fabric intermediary workaround ─────────────────────────────────────────
+// MC 26.x ships pre-deobfuscated (yarn was final at 1.21.11, the last
+// obfuscated MC version). Mojang no longer publishes a `client_mappings`
+// file, so `loom.officialMojangMappings()` fails with
+//   "Failed to find official mojang mappings for 26.1.2"
+//
+// Fabric publishes intermediary mappings for 26.1.x, but the artifact
+// ships with a stub POM whose <version> is hard-coded to 0.0.0. Gradle's
+// strict module-metadata verification rejects the mismatch:
+//   "inconsistent module metadata found. Descriptor: ...:0.0.0
+//    Errors: bad version: expected='26.1.2' found='0.0.0'"
+//
+// `@jar` artifact-only notation and `metadataSources { artifact() }` on a
+// dedicated repo entry both failed to suppress this — Loom's internal
+// mappings resolution path appears to re-declare intermediary in a way
+// that triggers POM lookup anyway.
+//
+// Bulletproof fix: download the jar ourselves and feed it to Loom as a
+// local file dependency. `files(...)` skips every metadata mechanism.
+def intermediaryDir  = file("${gradle.gradleUserHomeDir}/wsm-intermediary-cache/${minecraft_version_26x}")
+def intermediaryJar  = new File(intermediaryDir, "intermediary-${minecraft_version_26x}-v2.jar")
+if (!intermediaryJar.exists()) {
+    intermediaryDir.mkdirs()
+    def url = "https://maven.fabricmc.net/net/fabricmc/intermediary/${minecraft_version_26x}/intermediary-${minecraft_version_26x}-v2.jar"
+    println "[fabric-26x] downloading intermediary: ${url}"
+    def tmp = new File(intermediaryDir, "intermediary.jar.part")
+    new URL(url).withInputStream { input ->
+        tmp.withOutputStream { output -> output << input }
+    }
+    tmp.renameTo(intermediaryJar)
+    println "[fabric-26x] saved: ${intermediaryJar}"
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version_26x}"
-    // MC 26.x ships pre-deobfuscated (yarn was final at 1.21.11, the last
-    // obfuscated version), so Mojang no longer publishes a `client_mappings`
-    // file. `loom.officialMojangMappings()` looks for it and fails with
-    //     "Failed to find official mojang mappings for 26.1.2"
-    // Use Fabric's intermediary mappings directly instead; the MC jar is
-    // already mojang-named, so the "named" side of intermediary maps the
-    // mojang source we write to the intermediary class names Fabric uses
-    // at runtime (the `net.minecraft.class_NNNN` form).
-    //
-    // The `@jar` suffix is an artifact-only dependency notation that
-    // bypasses POM resolution. Fabric publishes intermediary with a stub
-    // POM that declares <version>0.0.0</version>, which Gradle's strict
-    // module-metadata check rejects with:
-    //     "inconsistent module metadata found.
-    //      Descriptor: net.fabricmc:intermediary:0.0.0
-    //      Errors: bad version: expected='26.1.2' found='0.0.0'"
-    // Going straight to the jar sidesteps that check.
-    mappings "net.fabricmc:intermediary:${minecraft_version_26x}:v2@jar"
+    mappings files(intermediaryJar)
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_26x}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_26x}"
 
