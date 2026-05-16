@@ -117,25 +117,32 @@ if (!mappingsJar.exists()) {
             throw new GradleException(
                 "[fabric-26x] ${intermediaryJar} has no mappings/mappings.tiny")
         }
-        def tiny = src.getInputStream(entry).getText('UTF-8')
+        def tiny
+        src.getInputStream(entry).withCloseable { input ->
+            tiny = input.getText('UTF-8')
+        }
         def out = new StringBuilder(tiny.length() + tiny.length() / 2 as int)
         boolean headerSeen = false
-        int existingNs = 0
+        boolean passthrough = false
         tiny.eachLine { line ->
             if (!headerSeen && line.startsWith('tiny\t')) {
-                // Header columns: tiny, 2, 0, ns0, ns1[, ns2]
+                // Header columns: tiny, 2, 0, ns0, ns1[, ns2, ...]
                 def parts = line.split('\t', -1)
-                existingNs = parts.length - 3
-                if (existingNs >= 3) {
-                    // Already has named or more — keep as-is
+                def namespaces = parts.length > 3 ? parts[3..-1] : []
+                if (namespaces.contains('named')) {
+                    // Header already includes a `named` namespace — Loom will
+                    // pick that as the source-side mapping and no synthesis is
+                    // needed. Stream the file through unchanged.
+                    passthrough = true
                     out.append(line).append('\n')
                 } else {
-                    // Add 'named' column
+                    // Append `named` as the new last column. Every subsequent
+                    // data line will get a duplicate of its current last
+                    // column appended to fill the slot.
                     out.append(line).append('\tnamed').append('\n')
                 }
                 headerSeen = true
-            } else if (existingNs >= 3) {
-                // Source already has 3 namespaces; passthrough
+            } else if (passthrough) {
                 out.append(line).append('\n')
             } else if (line.startsWith('c\t')
                        || line.startsWith('\tm\t') || line.startsWith('\tf\t')
