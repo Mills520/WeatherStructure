@@ -1,8 +1,8 @@
 name: WeatherStructureMod
 version: '${version}'
 main: com.example.weathermod.WeatherStructurePlugin
-api-version: '1.21'
-description: Biome-aware weather cycling, structure boost, timed weather, and weather forecast. Compatible with Paper/Spigot 1.21.8 - 1.21.11.
+api-version: '26.1'
+description: Biome-aware weather cycling, structure boost, timed weather, and weather forecast. Compatible with Paper/Spigot 26.1.x.
 authors: [Mills520]
 website: https://github.com/Mills520/weather-structure-mod
 load: STARTUP

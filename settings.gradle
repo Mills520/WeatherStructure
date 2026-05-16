@@ -11,13 +11,13 @@ dependencyResolutionManagement {
     repositories {
         gradlePluginPortal()
         // WSM intermediary override (must come BEFORE the Fabric maven). The
-        // fabric-26x build.gradle stages a synthesized 3-namespace
-        // intermediary jar here at the correct GAV with a properly versioned
-        // POM, so Loom's internal `net.fabricmc:intermediary:<ver>` resolution
-        // (which is separate from the `mappings` configuration) picks up our
-        // jar instead of Fabric's upstream 2-column file. Without this, Loom
-        // dies with "Could not find 'named' mapping position!" even when the
-        // user-facing mappings dep has all 3 namespaces.
+        // fabric build.gradle stages a synthesized 3-namespace intermediary
+        // jar here at the correct GAV with a properly versioned POM, so
+        // Loom's internal `net.fabricmc:intermediary:<ver>` resolution
+        // (separate from the `mappings` configuration) picks up our jar
+        // instead of Fabric's upstream 2-column file. Without this, Loom
+        // dies with "Could not find 'named' mapping position!" even when
+        // the user-facing mappings dep has all 3 namespaces.
         maven {
             name = "WSM-Intermediary-Override"
             url = "${gradle.gradleUserHomeDir}/wsm-local-maven"
@@ -45,31 +45,7 @@ dependencyResolutionManagement {
 
 rootProject.name = 'weather-structure-multimod'
 
-// Forge is a standalone subproject with its own Gradle 8.8 wrapper.
-// It is built separately by build-all.sh / build-all.bat.
-// DO NOT include 'forge' here — ForgeGradle 6 requires Gradle 8 and
-// is incompatible with the Gradle 9.2 used by Loom 1.14 and ModDevGradle 2.
-
-// Conditionally include each MC line so Gradle doesn't *configure* the
-// 26.x projects under Java 21 (Loom 1.15 fails its Java 25 check during
-// configuration even if those projects aren't on the requested task list).
-//
-// Set -Dwsm.line=1.21 to include only the 1.21.x line, -Dwsm.line=26x to
-// include only the 26.x line, or leave unset / use 'all' to include both
-// (works only if the running Gradle JVM is Java 25, since Loom 1.15 needs
-// it for the 26.x configuration step).
-def wsmLine = (System.getProperty('wsm.line') ?: 'all').toLowerCase()
-
 include 'common'
-
-if (wsmLine == '1.21' || wsmLine == 'all') {
-    include 'fabric'
-    include 'neoforge'
-    include 'paper'
-}
-
-if (wsmLine == '26x' || wsmLine == 'all') {
-    include 'fabric-26x'
-    include 'neoforge-26x'
-    include 'paper-26x'
-}
+include 'fabric'
+include 'neoforge'
+include 'paper'

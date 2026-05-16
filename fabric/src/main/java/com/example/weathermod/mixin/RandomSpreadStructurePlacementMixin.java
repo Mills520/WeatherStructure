@@ -1,6 +1,6 @@
 package com.example.weathermod.mixin;
 
-import net.minecraft.world.gen.chunk.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
@@ -8,12 +8,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Boosts structure spawn density ~15% by shrinking spacing/separation
- * values by 13% (area scales with spacing², so 0.87² ≈ 0.76 → ~24% more
- * area per cell, but with directional spread this lands at ~15% more
- * structure attempts in practice).
- */
 @Mixin(RandomSpreadStructurePlacement.class)
 public abstract class RandomSpreadStructurePlacementMixin {
 

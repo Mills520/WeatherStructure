@@ -8,14 +8,15 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraft.world.biome.Biome;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.storage.ServerLevelData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,43 +24,42 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Fabric edition for MC 26.1.x — mojang official mappings.
+ * Yarn was retired after MC 1.21.11, so this build uses mojang names directly
+ * (matching the Forge / NeoForge source style).
+ */
 public class WeatherStructureMod implements ModInitializer {
 
     public static final String MOD_ID = "weatherstructuremod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private final WeatherEngine engine = new WeatherEngine();
-
-    // Spawn-biome category is stable per world; cache by registry key to avoid
-    // a biome lookup every server tick (20×/sec).
     private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
 
     @Override
     public void onInitialize() {
-        LOGGER.info("[WeatherStructureMod] v1.5.0 — Fabric — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.6.0 — Fabric (MC 26.x) — Dynamic Weather & Structure Boost active.");
         ServerTickEvents.END_WORLD_TICK.register(this::onWorldTick);
         registerCommands();
     }
 
-    // ── Commands ──────────────────────────────────────────────────────────
-
     private void registerCommands() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            // /timedweather <type> <seconds>
             dispatcher.register(
-                CommandManager.literal("timedweather")
-                    .requires(source -> CommandManager.GAMEMASTERS_CHECK.allows(source.getPermissions()))
-                    .then(CommandManager.literal("status")
+                Commands.literal("timedweather")
+                    .requires(source -> source.hasPermission(2))
+                    .then(Commands.literal("status")
                         .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
                     )
-                    .then(CommandManager.argument("type", StringArgumentType.word())
+                    .then(Commands.argument("type", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
                             builder.suggest("clear");
                             builder.suggest("rain");
                             builder.suggest("thunder");
                             return builder.buildFuture();
                         })
-                        .then(CommandManager.argument("seconds", IntegerArgumentType.integer(1, 86400))
+                        .then(Commands.argument("seconds", IntegerArgumentType.integer(1, 86400))
                             .executes(ctx -> {
                                 String type = StringArgumentType.getString(ctx, "type").toUpperCase(Locale.ROOT);
                                 int seconds = IntegerArgumentType.getInteger(ctx, "seconds");
@@ -69,63 +69,58 @@ public class WeatherStructureMod implements ModInitializer {
                     )
             );
 
-            // /weatherforecast
             dispatcher.register(
-                CommandManager.literal("weatherforecast")
-                    .requires(source -> CommandManager.GAMEMASTERS_CHECK.allows(source.getPermissions()))
+                Commands.literal("weatherforecast")
+                    .requires(source -> source.hasPermission(2))
                     .executes(ctx -> executeWeatherForecast(ctx.getSource()))
             );
         });
     }
 
-    private int executeTimedWeather(ServerCommandSource source, String type, int seconds) {
+    private int executeTimedWeather(CommandSourceStack source, String type, int seconds) {
         WeatherType weatherType = WeatherType.fromName(type);
         if (weatherType == null) {
-            source.sendError(Text.literal("Invalid weather type! Use: clear, rain, or thunder."));
+            source.sendFailure(Component.literal("Invalid weather type! Use: clear, rain, or thunder."));
             return 0;
         }
 
-        ServerWorld world = source.getServer().getOverworld();
+        ServerLevel level = source.getServer().overworld();
         int ticks = seconds * 20;
 
-        engine.setTimedWeather(weatherType, ticks, (wt, duration) -> {
-            switch (wt) {
-                case CLEAR   -> world.setWeather(duration, 0,        false, false);
-                case RAIN    -> world.setWeather(0,        duration, true,  false);
-                case THUNDER -> world.setWeather(0,        duration, true,  true);
-            }
-        });
+        engine.setTimedWeather(weatherType, ticks, (wt, duration) ->
+            applyWeatherType((ServerLevelData) level.getLevelData(), wt, duration)
+        );
 
-        source.sendFeedback(() -> Text.literal(
+        source.sendSuccess(() -> Component.literal(
             "[WSM] Weather set to " + weatherType.name() + " for " + seconds + "s. Will revert to CLEAR after."
         ), true);
         LOGGER.info("[WeatherStructureMod] Timed weather: {} for {}s.", weatherType, seconds);
         return 1;
     }
 
-    private int executeTimedWeatherStatus(ServerCommandSource source) {
+    private int executeTimedWeatherStatus(CommandSourceStack source) {
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "[WSM] Timed weather: " + engine.getTimedWeatherType()
                     + " — " + WeatherEngine.formatTicks(remaining)
                     + " remaining (" + remaining + " ticks)"
             ), false);
         } else {
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "[WSM] No timed weather active. Normal cycling is running."
             ), false);
         }
         return 1;
     }
 
-    private int executeWeatherForecast(ServerCommandSource source) {
-        ServerWorld world = source.getServer().getOverworld();
-        String key = world.getRegistryKey().getValue().toString();
+    private int executeWeatherForecast(CommandSourceStack source) {
+        ServerLevel level = source.getServer().overworld();
+        String key = level.dimension().identifier().toString();
 
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "[WSM] Timed weather active: " + engine.getTimedWeatherType()
                     + "\n  Remaining: " + WeatherEngine.formatTicks(remaining)
                     + " (" + remaining + " ticks)"
@@ -133,12 +128,12 @@ public class WeatherStructureMod implements ModInitializer {
             ), false);
         } else {
             int ticksLeft = engine.getTicksUntilNextChange(key);
-            BiomeCategory category = getSpawnBiomeCategory(world);
+            BiomeCategory category = getSpawnBiomeCategory(level);
             String forecast = ticksLeft > 0
                 ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
                 : "imminent";
 
-            source.sendFeedback(() -> Text.literal(
+            source.sendSuccess(() -> Component.literal(
                 "[WSM] Next weather change in ~" + forecast
                     + "\n  Spawn biome influence: " + category.name()
             ), false);
@@ -146,23 +141,16 @@ public class WeatherStructureMod implements ModInitializer {
         return 1;
     }
 
-    // ── Tick handler ─────────────────────────────────────────────────────
+    private void onWorldTick(ServerLevel level) {
+        if (level.dimension() != Level.OVERWORLD) return;
 
-    private void onWorldTick(ServerWorld world) {
-        // Reference equality works because RegistryKey uses an interner (#12)
-        if (world.getRegistryKey() != World.OVERWORLD) return;
-
-        String key = world.getRegistryKey().getValue().toString();
+        String key = level.dimension().identifier().toString();
         BiomeCategory biomeCategory = spawnBiomeCache.computeIfAbsent(
-            key, k -> getSpawnBiomeCategory(world));
+            key, k -> getSpawnBiomeCategory(level));
 
-        WeatherType changed = engine.tick(key, biomeCategory, (type, duration) -> {
-            switch (type) {
-                case CLEAR   -> world.setWeather(duration, 0,        false, false);
-                case RAIN    -> world.setWeather(0,        duration, true,  false);
-                case THUNDER -> world.setWeather(0,        duration, true,  true);
-            }
-        });
+        WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
+            applyWeatherType((ServerLevelData) level.getLevelData(), type, duration)
+        );
 
         if (changed != null) {
             if (engine.wasLastTickTimedExpiry()) {
@@ -173,11 +161,37 @@ public class WeatherStructureMod implements ModInitializer {
         }
     }
 
-    private BiomeCategory getSpawnBiomeCategory(ServerWorld world) {
-        BlockPos spawn = world.getSpawnPoint().getPos();
-        RegistryEntry<Biome> biome = world.getBiome(spawn);
-        String biomeId = biome.getKey()
-            .map(k -> k.getValue().toString())
+    private void applyWeatherType(ServerLevelData data, WeatherType type, int duration) {
+        switch (type) {
+            case CLEAR -> {
+                data.setRaining(false);
+                data.setThundering(false);
+                data.setClearWeatherTime(duration);
+                data.setRainTime(0);
+                data.setThunderTime(0);
+            }
+            case RAIN -> {
+                data.setRaining(true);
+                data.setThundering(false);
+                data.setClearWeatherTime(0);
+                data.setRainTime(duration);
+                data.setThunderTime(0);
+            }
+            case THUNDER -> {
+                data.setRaining(true);
+                data.setThundering(true);
+                data.setClearWeatherTime(0);
+                data.setRainTime(duration);
+                data.setThunderTime(duration);
+            }
+        }
+    }
+
+    private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
+        BlockPos spawn = level.getRespawnData().pos();
+        Holder<Biome> biome = level.getBiome(spawn);
+        String biomeId = biome.unwrapKey()
+            .<String>map(k -> k.identifier().toString())
             .orElse("");
         return BiomeCategory.fromBiomeId(biomeId);
     }

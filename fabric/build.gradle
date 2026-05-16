@@ -6,11 +6,179 @@ version   = "${mod_version}"
 group     = maven_group
 base { archivesName = "weather-structure-mod-fabric" }
 
+// ── Fabric intermediary workaround for post-yarn MC ────────────────────────
+// MC 26.x ships pre-deobfuscated (yarn was final at 1.21.11, the last
+// obfuscated MC version). Mojang no longer publishes a `client_mappings`
+// file, so `loom.officialMojangMappings()` fails with
+//   "Failed to find official mojang mappings for <ver>"
+//
+// Fabric publishes intermediary mappings for 26.x, but the artifact ships
+// with a stub POM whose <version> is hard-coded to 0.0.0; Gradle's strict
+// module-metadata verifier rejects the mismatch.
+//
+// The block below:
+//   1. downloads the intermediary jar directly (skipping POM resolution),
+//   2. synthesizes a `named` namespace (post-yarn intermediary has only
+//      `intermediary`+`official`, but Loom requires `named` to compile),
+//   3. stages the result in a local maven repo at the correct GAV with a
+//      properly-versioned POM so Loom's internal `net.fabricmc:intermediary`
+//      resolution (separate from the `mappings files(...)` dep below) finds
+//      our 3-column file instead of the upstream 2-column file.
+def intermediaryDir = file("${gradle.gradleUserHomeDir}/wsm-intermediary-cache/${minecraft_version}")
+def intermediaryJar = new File(intermediaryDir, "intermediary-${minecraft_version}-v2.jar")
+if (!intermediaryJar.exists()) {
+    intermediaryDir.mkdirs()
+    // Fabric's intermediary maven layout has changed across MC versions:
+    //   pre-1.21.x:  intermediary-VER-v2.jar (classifier "v2")
+    //   post-1.21.x: intermediary-VER.jar    (no classifier; v2 format is default)
+    def base = "https://maven.fabricmc.net/net/fabricmc/intermediary/${minecraft_version}"
+    def candidates = [
+        "${base}/intermediary-${minecraft_version}.jar",
+        "${base}/intermediary-${minecraft_version}-v2.jar",
+    ]
+    def tmp     = new File(intermediaryDir, "intermediary.jar.part")
+    def errors  = []
+    def sourceUrl = null
+    for (url in candidates) {
+        try {
+            def conn = new URL(url).openConnection()
+            conn.setRequestProperty('User-Agent', "wsm-build/${mod_version}")
+            conn.setConnectTimeout(30_000)
+            conn.setReadTimeout(60_000)
+            def code = conn.getResponseCode()
+            if (code != 200) {
+                errors << "${code} ${url}"
+                continue
+            }
+            println "[fabric] downloading intermediary: ${url}"
+            conn.inputStream.withStream { input ->
+                tmp.withOutputStream { output -> output << input }
+            }
+            sourceUrl = url
+            break
+        } catch (Throwable t) {
+            errors << "${t.class.simpleName}: ${t.message} (${url})"
+        }
+    }
+    if (sourceUrl == null) {
+        tmp.delete()
+        throw new GradleException(
+            "[fabric] could not download Fabric intermediary mappings for " +
+            "${minecraft_version}. Tried:\n  - " + errors.join('\n  - '))
+    }
+    try {
+        java.nio.file.Files.move(
+            tmp.toPath(),
+            intermediaryJar.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+    } catch (Throwable t) {
+        tmp.delete()
+        intermediaryJar.delete()
+        throw new GradleException(
+            "[fabric] failed to install intermediary jar at " +
+            "${intermediaryJar}: ${t.message}", t)
+    }
+    if (!intermediaryJar.exists()) {
+        throw new GradleException(
+            "[fabric] intermediary jar missing after download: ${intermediaryJar}")
+    }
+    println "[fabric] saved: ${intermediaryJar}"
+}
+
+def mappingsJar = new File(intermediaryDir, "intermediary-${minecraft_version}-with-named.jar")
+if (!mappingsJar.exists()) {
+    println "[fabric] synthesizing 'named' namespace from intermediary…"
+    def src = new java.util.zip.ZipFile(intermediaryJar)
+    try {
+        def entry = src.getEntry('mappings/mappings.tiny')
+        if (entry == null) {
+            throw new GradleException(
+                "[fabric] ${intermediaryJar} has no mappings/mappings.tiny")
+        }
+        def tiny
+        src.getInputStream(entry).withCloseable { input ->
+            tiny = input.getText('UTF-8')
+        }
+        def out = new StringBuilder(tiny.length() + tiny.length() / 2 as int)
+        boolean headerSeen = false
+        boolean passthrough = false
+        tiny.eachLine { line ->
+            if (!headerSeen && line.startsWith('tiny\t')) {
+                def parts = line.split('\t', -1)
+                def namespaces = parts.length > 3 ? parts[3..-1] : []
+                if (namespaces.contains('named')) {
+                    passthrough = true
+                    out.append(line).append('\n')
+                } else {
+                    out.append(line).append('\tnamed').append('\n')
+                }
+                headerSeen = true
+            } else if (passthrough) {
+                out.append(line).append('\n')
+            } else if (line.startsWith('c\t')
+                       || line.startsWith('\tm\t') || line.startsWith('\tf\t')
+                       || line.startsWith('\t\tp\t') || line.startsWith('\t\tv\t')) {
+                def parts = line.split('\t', -1)
+                def last = parts.length > 0 ? parts[parts.length - 1] : ''
+                out.append(line).append('\t').append(last).append('\n')
+            } else {
+                out.append(line).append('\n')
+            }
+        }
+        def tmpJar = new File(intermediaryDir, "intermediary-named.jar.part")
+        def zos = new java.util.zip.ZipOutputStream(new FileOutputStream(tmpJar))
+        try {
+            zos.putNextEntry(new java.util.zip.ZipEntry('mappings/mappings.tiny'))
+            zos.write(out.toString().getBytes('UTF-8'))
+            zos.closeEntry()
+        } finally {
+            zos.close()
+        }
+        java.nio.file.Files.move(
+            tmpJar.toPath(),
+            mappingsJar.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+        println "[fabric] wrote: ${mappingsJar}"
+    } finally {
+        src.close()
+    }
+}
+
+def localMavenRoot = file("${gradle.gradleUserHomeDir}/wsm-local-maven")
+def stagedDir = new File(localMavenRoot, "net/fabricmc/intermediary/${minecraft_version}")
+stagedDir.mkdirs()
+def stagedJar = new File(stagedDir, "intermediary-${minecraft_version}.jar")
+def stagedJarV2 = new File(stagedDir, "intermediary-${minecraft_version}-v2.jar")
+java.nio.file.Files.copy(
+    mappingsJar.toPath(),
+    stagedJar.toPath(),
+    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+)
+java.nio.file.Files.copy(
+    mappingsJar.toPath(),
+    stagedJarV2.toPath(),
+    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+)
+new File(stagedDir, "intermediary-${minecraft_version}.pom").text = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<project xmlns=\"http://maven.apache.org/POM/4.0.0\"
+         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>net.fabricmc</groupId>
+    <artifactId>intermediary</artifactId>
+    <version>${minecraft_version}</version>
+    <packaging>jar</packaging>
+</project>
+"""
+println "[fabric] staged in local maven: ${stagedDir}"
+
 dependencies {
-    minecraft    libs.minecraft
-    mappings     "net.fabricmc:yarn:${yarn_mappings}:v2"
-    modImplementation libs.fabric.loader
-    modImplementation libs.fabric.api
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings files(mappingsJar)
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api}"
 
     implementation project(':common')
     include project(':common')
@@ -22,15 +190,15 @@ processResources {
     filesMatching("fabric.mod.json") { expand "version": project.version }
 }
 
-def targetJava = 21
+def targetJava = 25
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release  = targetJava
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
     withSourcesJar()
 }
 
