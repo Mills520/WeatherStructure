@@ -176,6 +176,49 @@ if (!mappingsJar.exists()) {
     }
 }
 
+// ── Stage synthesized jar as a local maven artifact ────────────────────────
+// Loom independently resolves `net.fabricmc:intermediary:<ver>` when setting
+// up its runtime remap pipeline, *separately* from the `mappings files(...)`
+// dep below. That separate resolution still goes through Fabric's maven and
+// reads the 2-column intermediary jar, which is why Loom keeps failing on
+//   Could not find 'named' mapping position!
+// even though our `mappings files(...)` dep has all 3 columns.
+//
+// Stage the synthesized jar in a local maven repo at the correct GAV with a
+// POM that declares the right version (the upstream POM is hard-coded to
+// 0.0.0). settings.gradle adds this dir as a repo *before* maven.fabricmc.net
+// for the intermediary module specifically, so Loom's internal fetch picks
+// up our 3-column jar.
+def localMavenRoot = file("${gradle.gradleUserHomeDir}/wsm-local-maven")
+def stagedDir = new File(localMavenRoot, "net/fabricmc/intermediary/${minecraft_version_26x}")
+stagedDir.mkdirs()
+def stagedJar = new File(stagedDir, "intermediary-${minecraft_version_26x}.jar")
+def stagedJarV2 = new File(stagedDir, "intermediary-${minecraft_version_26x}-v2.jar")
+java.nio.file.Files.copy(
+    mappingsJar.toPath(),
+    stagedJar.toPath(),
+    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+)
+// Also publish under the `-v2` classifier name in case Loom requests that variant.
+java.nio.file.Files.copy(
+    mappingsJar.toPath(),
+    stagedJarV2.toPath(),
+    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+)
+def pomFile = new File(stagedDir, "intermediary-${minecraft_version_26x}.pom")
+pomFile.text = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<project xmlns=\"http://maven.apache.org/POM/4.0.0\"
+         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>net.fabricmc</groupId>
+    <artifactId>intermediary</artifactId>
+    <version>${minecraft_version_26x}</version>
+    <packaging>jar</packaging>
+</project>
+"""
+println "[fabric-26x] staged in local maven: ${stagedDir}"
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version_26x}"
     mappings files(mappingsJar)

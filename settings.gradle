@@ -10,11 +10,22 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         gradlePluginPortal()
-        // Fabric's intermediary artifact ships with a stub POM declaring
-        // <version>0.0.0</version>, which Gradle's strict module-metadata
-        // check rejects when you request a real version. Pin a dedicated
-        // repo entry that only handles the intermediary module and uses
-        // artifact-derived metadata, so the bad POM is bypassed.
+        // WSM intermediary override (must come BEFORE the Fabric maven). The
+        // fabric-26x build.gradle stages a synthesized 3-namespace
+        // intermediary jar here at the correct GAV with a properly versioned
+        // POM, so Loom's internal `net.fabricmc:intermediary:<ver>` resolution
+        // (which is separate from the `mappings` configuration) picks up our
+        // jar instead of Fabric's upstream 2-column file. Without this, Loom
+        // dies with "Could not find 'named' mapping position!" even when the
+        // user-facing mappings dep has all 3 namespaces.
+        maven {
+            name = "WSM-Intermediary-Override"
+            url = "${gradle.gradleUserHomeDir}/wsm-local-maven"
+            content { includeModule("net.fabricmc", "intermediary") }
+        }
+        // Upstream Fabric intermediary fallback. The published jar's POM is
+        // hard-coded to <version>0.0.0</version>, which Gradle's strict
+        // metadata check rejects — use artifact-derived metadata to bypass.
         maven {
             name = "Fabric-Intermediary"
             url = "https://maven.fabricmc.net/"
