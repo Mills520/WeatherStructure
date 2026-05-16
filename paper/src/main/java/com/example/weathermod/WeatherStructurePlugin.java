@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 /**
- * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.5.0
+ * Paper / Spigot / Bukkit plugin — Weather & Structure Mod v1.6.0 (MC 26.x)
  *
  * Feature 1 — Dynamic Weather Cycling:
  *   Biome-aware random weather every 30–60 min, weighted by spawn biome.
@@ -49,7 +49,7 @@ public class WeatherStructurePlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         Logger log = getLogger();
-        log.info("[WSM] Weather & Structure Mod v1.5.0 (Paper) enabling...");
+        log.info("[WSM] Weather & Structure Mod v1.6.0 (Paper, MC 26.x) enabling...");
 
         boostStructureDensity();
 
