@@ -13,6 +13,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
@@ -160,16 +161,27 @@ public class WeatherStructureMod implements ModInitializer {
         }
     }
 
-    // setWeatherParameters(clearTime, weatherTime, isRaining, isThundering)
-    // is the stable ServerLevel API for setting weather state; it's a thin
-    // wrapper over the ServerLevelData setters that got removed from the
-    // public interface in MC 26.x.
+    // Set weather by dispatching the vanilla `/weather` command. We tried
+    // `ServerLevel.setWeatherParameters(int,int,boolean,boolean)` and the
+    // `ServerLevelData` setters first; both got removed or renamed in MC
+    // 26.x and the new internal signature is unclear without source access.
+    // The `/weather` command is a stable public surface that's existed
+    // since pre-1.16, so dispatching it works regardless of how Mojang
+    // refactors the internals. `withSuppressedOutput()` silences the
+    // command's "Set the weather to ..." chat to ops.
     private void applyWeatherType(ServerLevel level, WeatherType type, int duration) {
-        switch (type) {
-            case CLEAR   -> level.setWeatherParameters(duration, 0,        false, false);
-            case RAIN    -> level.setWeatherParameters(0,        duration, true,  false);
-            case THUNDER -> level.setWeatherParameters(0,        duration, true,  true);
-        }
+        MinecraftServer server = level.getServer();
+        if (server == null) return;
+        int seconds = Math.max(1, duration / 20);
+        String cmd = switch (type) {
+            case CLEAR   -> "weather clear "   + seconds;
+            case RAIN    -> "weather rain "    + seconds;
+            case THUNDER -> "weather thunder " + seconds;
+        };
+        server.getCommands().performPrefixedCommand(
+            server.createCommandSourceStack().withSuppressedOutput(),
+            cmd
+        );
     }
 
     private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
