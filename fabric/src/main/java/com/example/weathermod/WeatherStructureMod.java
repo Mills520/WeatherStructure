@@ -16,7 +16,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.storage.ServerLevelData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +39,7 @@ public class WeatherStructureMod implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("[WeatherStructureMod] v1.6.0 — Fabric (MC 26.x) — Dynamic Weather & Structure Boost active.");
-        ServerTickEvents.END_WORLD_TICK.register(this::onWorldTick);
+        ServerTickEvents.END_LEVEL_TICK.register(this::onWorldTick);
         registerCommands();
     }
 
@@ -48,7 +47,7 @@ public class WeatherStructureMod implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                 Commands.literal("timedweather")
-                    .requires(source -> source.hasPermission(2))
+                    .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                     .then(Commands.literal("status")
                         .executes(ctx -> executeTimedWeatherStatus(ctx.getSource()))
                     )
@@ -71,7 +70,7 @@ public class WeatherStructureMod implements ModInitializer {
 
             dispatcher.register(
                 Commands.literal("weatherforecast")
-                    .requires(source -> source.hasPermission(2))
+                    .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                     .executes(ctx -> executeWeatherForecast(ctx.getSource()))
             );
         });
@@ -88,7 +87,7 @@ public class WeatherStructureMod implements ModInitializer {
         int ticks = seconds * 20;
 
         engine.setTimedWeather(weatherType, ticks, (wt, duration) ->
-            applyWeatherType((ServerLevelData) level.getLevelData(), wt, duration)
+            applyWeatherType(level, wt, duration)
         );
 
         source.sendSuccess(() -> Component.literal(
@@ -149,7 +148,7 @@ public class WeatherStructureMod implements ModInitializer {
             key, k -> getSpawnBiomeCategory(level));
 
         WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
-            applyWeatherType((ServerLevelData) level.getLevelData(), type, duration)
+            applyWeatherType(level, type, duration)
         );
 
         if (changed != null) {
@@ -161,29 +160,15 @@ public class WeatherStructureMod implements ModInitializer {
         }
     }
 
-    private void applyWeatherType(ServerLevelData data, WeatherType type, int duration) {
+    // setWeatherParameters(clearTime, weatherTime, isRaining, isThundering)
+    // is the stable ServerLevel API for setting weather state; it's a thin
+    // wrapper over the ServerLevelData setters that got removed from the
+    // public interface in MC 26.x.
+    private void applyWeatherType(ServerLevel level, WeatherType type, int duration) {
         switch (type) {
-            case CLEAR -> {
-                data.setRaining(false);
-                data.setThundering(false);
-                data.setClearWeatherTime(duration);
-                data.setRainTime(0);
-                data.setThunderTime(0);
-            }
-            case RAIN -> {
-                data.setRaining(true);
-                data.setThundering(false);
-                data.setClearWeatherTime(0);
-                data.setRainTime(duration);
-                data.setThunderTime(0);
-            }
-            case THUNDER -> {
-                data.setRaining(true);
-                data.setThundering(true);
-                data.setClearWeatherTime(0);
-                data.setRainTime(duration);
-                data.setThunderTime(duration);
-            }
+            case CLEAR   -> level.setWeatherParameters(duration, 0,        false, false);
+            case RAIN    -> level.setWeatherParameters(0,        duration, true,  false);
+            case THUNDER -> level.setWeatherParameters(0,        duration, true,  true);
         }
     }
 
