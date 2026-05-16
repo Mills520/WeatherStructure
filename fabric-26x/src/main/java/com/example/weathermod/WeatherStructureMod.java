@@ -116,7 +116,7 @@ public class WeatherStructureMod implements ModInitializer {
 
     private int executeWeatherForecast(CommandSourceStack source) {
         ServerLevel level = source.getServer().overworld();
-        String key = level.dimension().location().toString();
+        String key = level.dimension().identifier().toString();
 
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
@@ -144,7 +144,7 @@ public class WeatherStructureMod implements ModInitializer {
     private void onWorldTick(ServerLevel level) {
         if (level.dimension() != Level.OVERWORLD) return;
 
-        String key = level.dimension().location().toString();
+        String key = level.dimension().identifier().toString();
         BiomeCategory biomeCategory = spawnBiomeCache.computeIfAbsent(
             key, k -> getSpawnBiomeCategory(level));
 
@@ -188,10 +188,10 @@ public class WeatherStructureMod implements ModInitializer {
     }
 
     private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
-        BlockPos spawn = level.getSharedSpawnPos();
+        BlockPos spawn = level.getRespawnData().pos();
         Holder<Biome> biome = level.getBiome(spawn);
         String biomeId = biome.unwrapKey()
-            .<String>map(k -> k.location().toString())
+            .<String>map(k -> k.identifier().toString())
             .orElse("");
         return BiomeCategory.fromBiomeId(biomeId);
     }
