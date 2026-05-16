@@ -91,9 +91,87 @@ if (!intermediaryJar.exists()) {
     println "[fabric-26x] saved: ${intermediaryJar}"
 }
 
+// ── Synthesize the 'named' namespace ───────────────────────────────────────
+// Post-yarn intermediary jars contain only two namespaces (`intermediary`,
+// `official`); Loom requires a third (`named`) for compiling source. Yarn
+// used to fill that slot; nothing does now. Since MC 26.x is unobfuscated,
+// `named == official` is the correct mapping, so we transform the tinyv2
+// file in-place by adding a 'named' column that mirrors 'official'.
+//
+// Tinyv2 grammar (https://fabricmc.net/wiki/documentation:tinyv2):
+//   header:  tiny<TAB>2<TAB>0<TAB><ns0><TAB><ns1>[<TAB><ns2>...]
+//   class:   c<TAB><name0><TAB><name1>...
+//   field:   <TAB>f<TAB><desc><TAB><name0><TAB><name1>...
+//   method:  <TAB>m<TAB><desc><TAB><name0><TAB><name1>...
+//   param:   <TAB><TAB>p<TAB><lvIdx><TAB><name0>...
+//   var:     <TAB><TAB>v<TAB><lvIdx><TAB><off>[<TAB><lvtIdx>]<TAB><name0>...
+//   anything else (comments `#...`, indented child blocks of c-headers
+//   like `\tc` for class comments) is left untouched.
+def mappingsJar = new File(intermediaryDir, "intermediary-${minecraft_version_26x}-with-named.jar")
+if (!mappingsJar.exists()) {
+    println "[fabric-26x] synthesizing 'named' namespace from intermediary…"
+    def src = new java.util.zip.ZipFile(intermediaryJar)
+    try {
+        def entry = src.getEntry('mappings/mappings.tiny')
+        if (entry == null) {
+            throw new GradleException(
+                "[fabric-26x] ${intermediaryJar} has no mappings/mappings.tiny")
+        }
+        def tiny = src.getInputStream(entry).getText('UTF-8')
+        def out = new StringBuilder(tiny.length() + tiny.length() / 2 as int)
+        boolean headerSeen = false
+        int existingNs = 0
+        tiny.eachLine { line ->
+            if (!headerSeen && line.startsWith('tiny\t')) {
+                // Header columns: tiny, 2, 0, ns0, ns1[, ns2]
+                def parts = line.split('\t', -1)
+                existingNs = parts.length - 3
+                if (existingNs >= 3) {
+                    // Already has named or more — keep as-is
+                    out.append(line).append('\n')
+                } else {
+                    // Add 'named' column
+                    out.append(line).append('\tnamed').append('\n')
+                }
+                headerSeen = true
+            } else if (existingNs >= 3) {
+                // Source already has 3 namespaces; passthrough
+                out.append(line).append('\n')
+            } else if (line.startsWith('c\t')
+                       || line.startsWith('\tm\t') || line.startsWith('\tf\t')
+                       || line.startsWith('\t\tp\t') || line.startsWith('\t\tv\t')) {
+                // Mapping data row — append a copy of the last namespace column.
+                def parts = line.split('\t', -1)
+                def last = parts.length > 0 ? parts[parts.length - 1] : ''
+                out.append(line).append('\t').append(last).append('\n')
+            } else {
+                // Comments, child blocks (\tc), blank lines — passthrough.
+                out.append(line).append('\n')
+            }
+        }
+        def tmpJar = new File(intermediaryDir, "intermediary-named.jar.part")
+        def zos = new java.util.zip.ZipOutputStream(new FileOutputStream(tmpJar))
+        try {
+            zos.putNextEntry(new java.util.zip.ZipEntry('mappings/mappings.tiny'))
+            zos.write(out.toString().getBytes('UTF-8'))
+            zos.closeEntry()
+        } finally {
+            zos.close()
+        }
+        java.nio.file.Files.move(
+            tmpJar.toPath(),
+            mappingsJar.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+        println "[fabric-26x] wrote: ${mappingsJar}"
+    } finally {
+        src.close()
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version_26x}"
-    mappings files(intermediaryJar)
+    mappings files(mappingsJar)
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_26x}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_26x}"
 
