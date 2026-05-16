@@ -88,7 +88,7 @@ if (!intermediaryJar.exists()) {
 
 // Bump synthesisVersion whenever the synthesis logic below changes so old
 // cached jars get regenerated instead of poisoning the build.
-def synthesisVersion = 2
+def synthesisVersion = 3
 def mappingsJar = new File(intermediaryDir, "intermediary-${minecraft_version}-with-named-v${synthesisVersion}.jar")
 if (!mappingsJar.exists()) {
     println "[fabric] synthesizing 'named' namespace from intermediary…"
@@ -103,32 +103,94 @@ if (!mappingsJar.exists()) {
         src.getInputStream(entry).withCloseable { input ->
             tiny = input.getText('UTF-8')
         }
+        def lines = tiny.readLines()
+        if (lines.isEmpty()) {
+            throw new GradleException("[fabric] ${intermediaryJar} mappings.tiny is empty")
+        }
+        def headerLine = lines[0]
+        def headerParts = headerLine.split('\t', -1)
+        boolean isV2 = headerParts.length >= 4 && headerParts[0] == 'tiny' && headerParts[1] == '2'
+        boolean isV1 = headerParts[0] == 'v1'
+        if (!isV1 && !isV2) {
+            throw new GradleException(
+                "[fabric] unknown mappings format (first line was: '${headerLine}')")
+        }
         def out = new StringBuilder(tiny.length() + tiny.length() / 2 as int)
-        boolean headerSeen = false
-        boolean passthrough = false
-        tiny.eachLine { line ->
-            if (!headerSeen && line.startsWith('tiny\t')) {
-                def parts = line.split('\t', -1)
-                def namespaces = parts.length > 3 ? parts[3..-1] : []
-                if (namespaces.contains('named')) {
-                    passthrough = true
-                    out.append(line).append('\n')
-                } else {
-                    out.append(line).append('\tnamed').append('\n')
-                }
-                headerSeen = true
-            } else if (passthrough) {
-                out.append(line).append('\n')
-            } else if (line.startsWith('c\t')
-                       || line.startsWith('\tm\t') || line.startsWith('\tf\t')
-                       || line.startsWith('\t\tp\t') || line.startsWith('\t\tv\t')) {
-                def parts = line.split('\t', -1)
-                def last = parts.length > 0 ? parts[parts.length - 1] : ''
-                out.append(line).append('\t').append(last).append('\n')
+
+        if (isV1) {
+            // tiny v1 grammar (flat):
+            //   header:  v1<TAB><ns0><TAB><ns1>[...]
+            //   class:   CLASS<TAB><name0><TAB><name1>[...]
+            //   field:   FIELD<TAB><owner_in_ns0><TAB><desc_in_ns0><TAB><name0><TAB><name1>[...]
+            //   method:  METHOD<TAB><owner_in_ns0><TAB><desc_in_ns0><TAB><name0><TAB><name1>[...]
+            // Name columns are always the LAST N columns of a data line, where
+            // N = number of namespaces declared in the header.
+            def namespaces = headerParts.length > 1 ? headerParts[1..-1] : []
+            if (namespaces.contains('named')) {
+                // Already has a `named` namespace — emit unchanged.
+                lines.each { out.append(it).append('\n') }
             } else {
-                out.append(line).append('\n')
+                // Post-yarn MC is unobfuscated, so `named == official`. Find the
+                // column index of `official` in the namespace list and duplicate
+                // that column's value into a new trailing `named` column.
+                def officialIdx = namespaces.indexOf('official')
+                if (officialIdx < 0) officialIdx = 0  // fall back to ns0
+                def numNs = namespaces.size()
+                lines.eachWithIndex { line, idx ->
+                    if (idx == 0) {
+                        // Header — append the new `named` namespace name.
+                        out.append(line).append('\tnamed').append('\n')
+                    } else if (line.startsWith('CLASS\t')
+                               || line.startsWith('FIELD\t')
+                               || line.startsWith('METHOD\t')) {
+                        def parts = line.split('\t', -1)
+                        def namesStart = parts.length - numNs
+                        def namedValue = (namesStart >= 0 && namesStart + officialIdx < parts.length)
+                                         ? parts[namesStart + officialIdx]
+                                         : ''
+                        out.append(line).append('\t').append(namedValue).append('\n')
+                    } else {
+                        // Blank lines, comments, unknown record types — passthrough.
+                        out.append(line).append('\n')
+                    }
+                }
+            }
+        } else {
+            // tiny v2 grammar (https://fabricmc.net/wiki/documentation:tinyv2):
+            //   header:  tiny<TAB>2<TAB>0<TAB><ns0><TAB><ns1>[<TAB><ns2>...]
+            //   class:   c<TAB><name0><TAB><name1>...
+            //   field:   <TAB>f<TAB><desc><TAB><name0><TAB><name1>...
+            //   method:  <TAB>m<TAB><desc><TAB><name0><TAB><name1>...
+            //   param:   <TAB><TAB>p<TAB><lvIdx><TAB><name0>...
+            //   var:     <TAB><TAB>v<TAB><lvIdx><TAB><off>[<TAB><lvtIdx>]<TAB><name0>...
+            //   anything else (`#` comments, indented child blocks like `\tc`
+            //   class comments) is passed through unchanged.
+            def v2HeaderParts = headerParts
+            def namespaces = v2HeaderParts.length > 3 ? v2HeaderParts[3..-1] : []
+            boolean passthrough = namespaces.contains('named')
+            lines.eachWithIndex { line, idx ->
+                if (idx == 0) {
+                    if (passthrough) {
+                        out.append(line).append('\n')
+                    } else {
+                        out.append(line).append('\tnamed').append('\n')
+                    }
+                } else if (passthrough) {
+                    out.append(line).append('\n')
+                } else if (line.startsWith('c\t')
+                           || line.startsWith('\tm\t') || line.startsWith('\tf\t')
+                           || line.startsWith('\t\tp\t') || line.startsWith('\t\tv\t')) {
+                    // Append a copy of the last namespace column (which is
+                    // `official` for post-yarn MC, since unobfuscated).
+                    def parts = line.split('\t', -1)
+                    def last = parts.length > 0 ? parts[parts.length - 1] : ''
+                    out.append(line).append('\t').append(last).append('\n')
+                } else {
+                    out.append(line).append('\n')
+                }
             }
         }
+
         def tmpJar = new File(intermediaryDir, "intermediary-named.jar.part")
         def zos = new java.util.zip.ZipOutputStream(new FileOutputStream(tmpJar))
         try {
@@ -143,19 +205,26 @@ if (!mappingsJar.exists()) {
             mappingsJar.toPath(),
             java.nio.file.StandardCopyOption.REPLACE_EXISTING
         )
-        println "[fabric] wrote: ${mappingsJar}"
+        println "[fabric] wrote: ${mappingsJar} (format: ${isV1 ? 'v1' : 'v2'})"
     } finally {
         src.close()
     }
 }
 
-// Diagnostic: print the first line of the synthesized tinyv2 file so the
-// build log always shows whether 'named' made it into the header.
+// Diagnostic + assertion: read back the synthesized header and confirm
+// 'named' is in it. Fails loudly here rather than letting Loom/stitch
+// die with an opaque "Could not find 'named' mapping position!" later.
 new java.util.zip.ZipFile(mappingsJar).withCloseable { zf ->
     def entry = zf.getEntry('mappings/mappings.tiny')
     zf.getInputStream(entry).withCloseable { input ->
         def header = new BufferedReader(new InputStreamReader(input, 'UTF-8')).readLine()
         println "[fabric] mappings header: ${header}"
+        if (!header.split('\t', -1).contains('named')) {
+            throw new GradleException(
+                "[fabric] synthesis bug: 'named' namespace missing from " +
+                "${mappingsJar} (header was: '${header}'). Delete the file " +
+                "and re-run, or bump synthesisVersion.")
+        }
     }
 }
 
