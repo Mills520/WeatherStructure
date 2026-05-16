@@ -86,7 +86,10 @@ if (!intermediaryJar.exists()) {
     println "[fabric] saved: ${intermediaryJar}"
 }
 
-def mappingsJar = new File(intermediaryDir, "intermediary-${minecraft_version}-with-named.jar")
+// Bump synthesisVersion whenever the synthesis logic below changes so old
+// cached jars get regenerated instead of poisoning the build.
+def synthesisVersion = 2
+def mappingsJar = new File(intermediaryDir, "intermediary-${minecraft_version}-with-named-v${synthesisVersion}.jar")
 if (!mappingsJar.exists()) {
     println "[fabric] synthesizing 'named' namespace from intermediary…"
     def src = new java.util.zip.ZipFile(intermediaryJar)
@@ -146,6 +149,16 @@ if (!mappingsJar.exists()) {
     }
 }
 
+// Diagnostic: print the first line of the synthesized tinyv2 file so the
+// build log always shows whether 'named' made it into the header.
+new java.util.zip.ZipFile(mappingsJar).withCloseable { zf ->
+    def entry = zf.getEntry('mappings/mappings.tiny')
+    zf.getInputStream(entry).withCloseable { input ->
+        def header = new BufferedReader(new InputStreamReader(input, 'UTF-8')).readLine()
+        println "[fabric] mappings header: ${header}"
+    }
+}
+
 def localMavenRoot = file("${gradle.gradleUserHomeDir}/wsm-local-maven")
 def stagedDir = new File(localMavenRoot, "net/fabricmc/intermediary/${minecraft_version}")
 stagedDir.mkdirs()
@@ -173,6 +186,32 @@ new File(stagedDir, "intermediary-${minecraft_version}.pom").text = """<?xml ver
 </project>
 """
 println "[fabric] staged in local maven: ${stagedDir}"
+
+// ── Override Loom's internal intermediary cache ─────────────────────────────
+// The real problem (discovered after seeing "Could not find 'named' mapping
+// position!" from stitch's CommandProposeFieldNames): Loom does NOT use
+// Gradle's dependency resolution to fetch intermediary. Its internal
+// IntermediaryService downloads the jar directly from a hard-coded Fabric
+// maven URL into $GRADLE_USER_HOME/caches/fabric-loom/intermediary-<ver>-v2.jar,
+// bypassing both `mappings files(...)` and the WSM-Intermediary-Override
+// repo in settings.gradle.
+//
+// Loom then merges this 2-column intermediary with our 3-column user
+// mappings to build the file that stitch reads. The merge keeps the
+// intersection of namespaces — so `named` gets dropped, and stitch dies.
+//
+// Fix: pre-populate Loom's internal cache with our 3-column synthesized
+// jar before its afterEvaluate setup runs. This Groovy code runs during
+// project configuration, before any afterEvaluate hook fires.
+def loomCacheDir = file("${gradle.gradleUserHomeDir}/caches/fabric-loom")
+loomCacheDir.mkdirs()
+def loomIntermediaryJar = new File(loomCacheDir, "intermediary-${minecraft_version}-v2.jar")
+java.nio.file.Files.copy(
+    mappingsJar.toPath(),
+    loomIntermediaryJar.toPath(),
+    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+)
+println "[fabric] overrode Loom intermediary cache: ${loomIntermediaryJar}"
 
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
