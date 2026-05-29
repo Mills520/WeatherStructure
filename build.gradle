@@ -1,6 +1,7 @@
 // Root project — delegates everything to subprojects.
-// Run:  ./gradlew build
-// Outputs:
-//   fabric/build/libs/weather-structure-mod-fabric-1.0.0.jar
-//   neoforge/build/libs/weather-structure-mod-neoforge-1.0.0.jar
-//   paper/build/libs/weather-structure-mod-paper-1.0.0.jar
+// Run:  ./gradlew build              (all platforms; needs the Java 25 toolchain)
+//       ./gradlew :common:test       (engine unit tests; runs on Java 21)
+// Outputs (version from gradle.properties → mod_version):
+//   fabric/build/libs/weather-structure-mod-fabric-<version>.jar
+//   neoforge/build/libs/weather-structure-mod-neoforge-<version>.jar
+//   paper/build/libs/weather-structure-mod-paper-<version>.jar

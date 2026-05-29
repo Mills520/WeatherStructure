@@ -39,7 +39,7 @@ public class WeatherStructureMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        LOGGER.info("[WeatherStructureMod] v1.6.0 — Fabric (MC 26.x) — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.7.0 — Fabric (MC 26.x) — Dynamic Weather & Structure Boost active.");
         ServerTickEvents.END_LEVEL_TICK.register(this::onWorldTick);
         registerCommands();
     }

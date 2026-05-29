@@ -5,7 +5,11 @@ api-version: '26.1'
 description: Biome-aware weather cycling, structure boost, timed weather, and weather forecast. Compatible with Paper/Spigot 26.1.x.
 authors: [Mills520]
 website: https://github.com/Mills520/weather-structure-mod
-load: STARTUP
+# POSTWORLD (not STARTUP): the structure-density boost in onEnable() inspects
+# Bukkit.getWorlds(), which is empty for STARTUP plugins (they enable before
+# the default world loads), so the boost silently found no placements. Enabling
+# after the default world loads lets the boost actually apply.
+load: POSTWORLD
 
 commands:
   timedweather:
