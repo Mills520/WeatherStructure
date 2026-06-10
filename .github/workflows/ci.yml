@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Core check: the platform-independent weather engine. Compiles and tests
+  # on plain Java 21 with no Minecraft artifacts, so it is fast and reliable —
+  # treat this as the required status for merging.
+  engine-tests:
+    name: Engine tests (common, Java 21)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # --configure-on-demand keeps Gradle from configuring the fabric/
+      # neoforge/paper projects, which need the Java 25 toolchain and the
+      # external mod mavens this job doesn't have set up.
+      - name: Run engine unit tests
+        run: ./gradlew :common:test --configure-on-demand --console=plain
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-test-report
+          path: common/build/reports/tests/test/
+
+  # Best-effort check: builds the three loader JARs the same way
+  # build-all.sh does (Java 25 via -Dorg.gradle.java.home, matching the
+  # toolchain auto-detect opt-out in gradle.properties).
+  #
+  # continue-on-error: the Fabric build pins fabric-loom 1.15-SNAPSHOT (a
+  # mutable snapshot) and all three platforms resolve artifacts from
+  # external mavens (fabricmc / neoforged / papermc), so this job can break
+  # through no fault of the PR being tested. Once it has run green for a
+  # while, remove the continue-on-error line to make it blocking.
+  platform-jars:
+    name: Platform JARs (Fabric / NeoForge / Paper, Java 25)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build all platform JARs
+        run: >
+          ./gradlew :fabric:build :neoforge:build :paper:build
+          "-Dorg.gradle.java.home=$JAVA_HOME" --console=plain
+
+      - name: Upload mod JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-jars
+          path: |
+            fabric/build/libs/*.jar
+            neoforge/build/libs/*.jar
+            paper/build/libs/*.jar

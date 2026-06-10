@@ -233,8 +233,11 @@ public class WeatherStructurePlugin extends JavaPlugin {
             if (primaryWorld == null) return;
 
             String primaryKey = primaryWorld.getKey().toString();
-            BiomeCategory primaryBiome = spawnBiomeCategoryCache.getOrDefault(
-                primaryKey, getSpawnBiomeCategory(primaryWorld)
+            // computeIfAbsent, not getOrDefault: getOrDefault evaluates its
+            // fallback eagerly, which ran the spawn-biome lookup every tick
+            // even on a cache hit.
+            BiomeCategory primaryBiome = spawnBiomeCategoryCache.computeIfAbsent(
+                primaryKey, k -> getSpawnBiomeCategory(primaryWorld)
             );
 
             engine.tick(primaryKey, primaryBiome, (type, duration) ->
@@ -253,7 +256,7 @@ public class WeatherStructurePlugin extends JavaPlugin {
         for (World world : overworldCache) {
             // Use getKey() for stable world identifier (#10)
             String key = world.getKey().toString();
-            BiomeCategory biomeCategory = spawnBiomeCategoryCache.getOrDefault(key, getSpawnBiomeCategory(world));
+            BiomeCategory biomeCategory = spawnBiomeCategoryCache.computeIfAbsent(key, k -> getSpawnBiomeCategory(world));
 
             WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
                 applyWeatherType(world, type, duration)
