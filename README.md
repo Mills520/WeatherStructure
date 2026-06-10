@@ -5,9 +5,9 @@ and Spigot. One repo, one command, three JARs.
 
 | JAR | Platform | Install |
 |-----|----------|---------|
-| `fabric/build/libs/weather-structure-mod-fabric-1.6.0.jar` | Fabric 0.19+ on MC 26.1 – 26.1.2 | `mods/` |
-| `neoforge/build/libs/weather-structure-mod-neoforge-1.6.0.jar` | NeoForge 26.1+ on MC 26.1 – 26.1.2 | `mods/` |
-| `paper/build/libs/weather-structure-mod-paper-1.6.0.jar` | Paper/Spigot 26.1 – 26.1.2 | `plugins/` |
+| `fabric/build/libs/weather-structure-mod-fabric-1.7.0.jar` | Fabric 0.19+ on MC 26.1 – 26.1.2 | `mods/` |
+| `neoforge/build/libs/weather-structure-mod-neoforge-1.7.0.jar` | NeoForge 26.1+ on MC 26.1 – 26.1.2 | `mods/` |
+| `paper/build/libs/weather-structure-mod-paper-1.7.0.jar` | Paper/Spigot 26.1 – 26.1.2 | `plugins/` |
 
 > **MC version policy:** MC 26.x ships unobfuscated (yarn was retired
 > after MC 1.21.11) and requires Java 25, which is a hard break from
@@ -49,13 +49,22 @@ All platform-independent logic lives in `common/src/main/java`:
 
 | Class | Purpose |
 |-------|---------|
-| `WeatherType` | Enum: CLEAR, RAIN, THUNDER with cached values and name lookup |
-| `BiomeCategory` | Biome → climate mapping with weighted random weather selection |
-| `WeatherEngine` | Core tick logic, timer management, timed weather state |
+| `WeatherType` | Enum: CLEAR, RAIN, THUNDER with cached values, command tokens and case-insensitive name lookup |
+| `BiomeCategory` | Biome → climate mapping with weighted random selection (weights always sum to 1.0; injectable RNG) |
+| `WeatherEngine` | Core per-world tick logic, timer management, global timed-weather override, world lifecycle (`forget`/`reset`); optional seeded RNG for deterministic tests |
 
 Platform modules depend on `common` and only contain platform-specific
 wiring (event registration, commands, weather API calls, mixins,
 reflection).
+
+The engine has no Minecraft dependencies and is covered by an extensive
+JUnit suite. It compiles to **Java 21** (the platform modules target Java
+25), so the core can be built and tested without the full Java-25 /
+Minecraft toolchain:
+
+```bash
+./gradlew :common:test
+```
 
 ### Mappings note for `fabric/`
 
@@ -111,6 +120,33 @@ internal resolution picks it up. See the comments in
 ---
 
 ## Changelog
+
+### v1.7.0
+- **Engine rewrite.** `common/` (`WeatherEngine`, `BiomeCategory`,
+  `WeatherType`) was rewritten from scratch — same behaviour and public
+  API, cleaner internals, fuller docs. The tick path is split into focused
+  helpers and the per-tick `int[]` timer reuse / no-auto-boxing
+  optimizations are preserved.
+- **Hardening / bug fixes:**
+  - `WeatherEngine.setTimedWeather` now validates its arguments and clamps
+    non-positive durations to 1 tick (previously a 0/negative duration
+    applied weather but armed no timer, so it never reverted to clear).
+  - `WeatherEngine.formatTicks` no longer emits negative strings (e.g.
+    `"-1s"`); negative inputs format as `"0s"`.
+  - `tick`/`setTimedWeather`/`weightedRandom` fail fast on `null` arguments.
+  - **Paper:** the plugin now loads `POSTWORLD` instead of `STARTUP`. As a
+    `STARTUP` plugin, `onEnable()` ran before any world loaded, so the
+    reflective structure-density boost saw an empty `Bukkit.getWorlds()`
+    and silently did nothing. *(Behavioural fix — verify on a live Paper
+    server; the platform JARs require the Java 25 / Minecraft toolchain.)*
+- **Testability:** `WeatherEngine` and `BiomeCategory` accept an injectable
+  `RandomGenerator`, enabling deterministic tests. New `forget(worldKey)`
+  and `reset()` lifecycle methods, `WeatherType.getCommandName()`, and
+  `BiomeCategory` weight accessors.
+- **Tests:** the `common` suite grew from 22 to 57 cases (validation,
+  boundary/distribution checks with seeded RNG, multi-world cycling, timed
+  override lifecycle, formatting edge cases). All green under
+  `./gradlew :common:test`.
 
 ### v1.6.0
 - **Dropped MC 1.21.x support.** The dual-build approach in v1.5.0 was
