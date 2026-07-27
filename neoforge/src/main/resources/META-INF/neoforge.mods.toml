@@ -8,9 +8,15 @@ version     = "${file.jarVersion}"
 displayName = "Weather & Structure Mod"
 logoFile    = "assets/weatherstructuremod/icon.png"
 description = '''
-Biome-aware weather cycling (30-60 min), structure boost (+15%),
+Biome-aware weather cycling (30-60 min), denser structure spawns (~1.3x),
 timed weather & forecast commands. NeoForge edition for Minecraft 26.1.x.
 '''
+
+# NeoForge discovers mixin configs from this block. The `MixinConfigs` jar
+# manifest attribute set in build.gradle is the legacy Forge mechanism and is
+# ignored here, so without this the structure-boost mixin never applied.
+[[mixins]]
+    config = "weatherstructuremod-neoforge.mixins.json"
 
 [[dependencies.weatherstructuremod]]
     modId        = "neoforge"

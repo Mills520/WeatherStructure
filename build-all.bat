@@ -54,17 +54,18 @@ echo JAVA25_HOME = !JAVA25_HOME! >> "%LOGFILE%"
 "!JAVA25_HOME!\bin\java.exe" -version >> "%LOGFILE%" 2>&1
 echo.
 
-REM -- Stop stale daemons so we always start clean under Java 25 ----------
-echo Stopping any cached Gradle daemons...
-call "%ROOT%gradlew.bat" --stop >nul 2>&1
-echo Daemons stopped.
-echo.
-
+REM -- Check for the wrapper BEFORE trying to call it ---------------------
 if not exist "%ROOT%gradlew.bat" (
     echo ERROR: gradlew.bat not found. Run this bat from inside the project folder.
     echo ERROR: gradlew.bat missing >> "%LOGFILE%"
     exit /b 1
 )
+
+REM -- Stop stale daemons so we always start clean under Java 25 ----------
+echo Stopping any cached Gradle daemons...
+call "%ROOT%gradlew.bat" --stop >nul 2>&1
+echo Daemons stopped.
+echo.
 
 REM -- Read mod version from gradle.properties --------------------------
 set "MOD_VERSION="
@@ -160,16 +161,21 @@ exit /b 0
 
 REM ====================================================================
 REM  java_major <java.exe path>
-REM  Runs `java -version`, extracts the quoted version string from the
-REM  first line, leaves the leading numeric component in !_JAVA_MAJOR!.
+REM  Runs `java -version`, extracts the quoted version string, and leaves
+REM  the leading numeric component in !_JAVA_MAJOR!.
 REM  `usebackq` lets us use double quotes normally inside the command -
 REM  the command itself is delimited by backticks, so a path with spaces
 REM  just needs the usual one set of double quotes around it.
+REM  The findstr filter matters: a JVM with JAVA_TOOL_OPTIONS or
+REM  _JAVA_OPTIONS set prints a "Picked up ..." notice before the version
+REM  line, and reading token 3 of the first line then produced garbage -
+REM  so this reported "Could not find a Java 25 installation" on machines
+REM  that had one.
 REM ====================================================================
 :java_major
 set "_JAVA_MAJOR="
 set "_JAVA_RAW="
-for /f "usebackq tokens=3" %%v in (`"%~1" -version 2^>^&1`) do (
+for /f "usebackq tokens=3" %%v in (`"%~1" -version 2^>^&1 ^| findstr /c:" version "`) do (
     if not defined _JAVA_RAW set "_JAVA_RAW=%%v"
 )
 if not defined _JAVA_RAW exit /b 0

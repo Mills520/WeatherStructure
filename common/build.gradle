@@ -13,6 +13,10 @@ java {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release  = 21
+    // The engine is the one module that builds on a plain JDK, so it is also the
+    // one place lint is cheap to enforce. `this-escape` is excluded because it
+    // fires on the enum constructors in BiomeCategory.
+    options.compilerArgs << "-Xlint:all,-this-escape"
 }
 
 dependencies {

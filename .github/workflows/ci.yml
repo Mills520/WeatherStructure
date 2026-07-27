@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: neither job writes to the repository, so drop the default
+# token scopes instead of handing every build (including fork PRs) a token
+# that can.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -18,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Don't leave the token in .git/config, where any later build step
+          # (including third-party Gradle plugins) could read it.
+          persist-credentials: false
 
       - uses: actions/setup-java@v4
         with:
@@ -54,6 +64,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@v4
         with:

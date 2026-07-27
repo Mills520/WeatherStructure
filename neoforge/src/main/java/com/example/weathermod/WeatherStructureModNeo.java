@@ -9,6 +9,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
@@ -22,26 +23,44 @@ import net.minecraft.world.level.biome.Biome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-
 @Mod("weatherstructuremod")
 public class WeatherStructureModNeo {
 
     public static final String MOD_ID = "weatherstructuremod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    /** 24 hours — matches {@link WeatherEngine#MAX_TIMED_TICKS}. */
+    private static final int MAX_SECONDS = WeatherEngine.MAX_TIMED_TICKS / 20;
+
     private final WeatherEngine engine = new WeatherEngine();
 
-    // Spawn-biome category is stable per world; cache by registry key to avoid
-    // a biome lookup every server tick (20×/sec).
-    private final Map<String, BiomeCategory> spawnBiomeCache = new HashMap<>();
+    // ── Per-level tick state ─────────────────────────────────────────────
+    // The overworld is the only level this mod drives, and the level instance is
+    // stable for the lifetime of a server. Caching the registry-key string, the
+    // applier and the biome source against that instance keeps the tick handler
+    // allocation-free: previously every one of the 20 ticks per second built a
+    // fresh key String and two capturing lambdas.
+    private ServerLevel                        trackedLevel;
+    private String                             trackedKey;
+    private WeatherEngine.WeatherApplier       trackedApplier;
+    private WeatherEngine.BiomeCategorySource  trackedBiomeSource;
 
     public WeatherStructureModNeo(IEventBus modBus) {
-        LOGGER.info("[WeatherStructureMod] v1.7.0 — NeoForge (MC 26.x) — Dynamic Weather & Structure Boost active.");
+        LOGGER.info("[WeatherStructureMod] v1.8.0 — NeoForge (MC 26.x) — Dynamic Weather & Structure Boost active.");
         NeoForge.EVENT_BUS.addListener(this::onLevelTick);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        // A client keeps this mod instance alive across world loads, so engine
+        // state has to be dropped when the integrated server stops — otherwise a
+        // timed override (or a half-elapsed cycle timer) leaks into the next world.
+        NeoForge.EVENT_BUS.addListener(this::onServerStopped);
+    }
+
+    private void onServerStopped(ServerStoppedEvent event) {
+        engine.reset();
+        trackedLevel       = null;
+        trackedKey         = null;
+        trackedApplier     = null;
+        trackedBiomeSource = null;
     }
 
     // ── Commands ──────────────────────────────────────────────────────────
@@ -55,14 +74,14 @@ public class WeatherStructureModNeo {
                 )
                 .then(Commands.argument("type", StringArgumentType.word())
                     .suggests((ctx, builder) -> {
-                        builder.suggest("clear");
-                        builder.suggest("rain");
-                        builder.suggest("thunder");
+                        for (WeatherType t : WeatherType.cachedValues()) {
+                            builder.suggest(t.getCommandName());
+                        }
                         return builder.buildFuture();
                     })
-                    .then(Commands.argument("seconds", IntegerArgumentType.integer(1, 86400))
+                    .then(Commands.argument("seconds", IntegerArgumentType.integer(1, MAX_SECONDS))
                         .executes(ctx -> {
-                            String type = StringArgumentType.getString(ctx, "type").toUpperCase(Locale.ROOT);
+                            String type = StringArgumentType.getString(ctx, "type");
                             int seconds = IntegerArgumentType.getInteger(ctx, "seconds");
                             return executeTimedWeather(ctx.getSource(), type, seconds);
                         })
@@ -85,24 +104,25 @@ public class WeatherStructureModNeo {
         }
 
         ServerLevel level = source.getServer().overworld();
-        int ticks = seconds * 20;
-
-        engine.setTimedWeather(weatherType, ticks, (wt, duration) ->
+        int held = engine.setTimedWeather(weatherType, seconds * 20, (wt, duration) ->
             applyWeatherType(level, wt, duration)
         );
 
+        int heldSeconds = held / 20;
         source.sendSuccess(() -> Component.literal(
-            "[WSM] Weather set to " + weatherType.name() + " for " + seconds + "s. Will revert to CLEAR after."
+            "[WSM] Weather set to " + weatherType.getCommandName() + " for " + heldSeconds
+                + "s. Will revert to CLEAR after."
         ), true);
-        LOGGER.info("[WeatherStructureMod] Timed weather: {} for {}s.", weatherType, seconds);
+        LOGGER.info("[WeatherStructureMod] Timed weather: {} for {}s.", weatherType, heldSeconds);
         return 1;
     }
 
     private int executeTimedWeatherStatus(CommandSourceStack source) {
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
+            WeatherType active = engine.getTimedWeatherType();
             source.sendSuccess(() -> Component.literal(
-                "[WSM] Timed weather: " + engine.getTimedWeatherType()
+                "[WSM] Timed weather: " + active
                     + " — " + WeatherEngine.formatTicks(remaining)
                     + " remaining (" + remaining + " ticks)"
             ), false);
@@ -115,53 +135,58 @@ public class WeatherStructureModNeo {
     }
 
     private int executeWeatherForecast(CommandSourceStack source) {
-        ServerLevel level = source.getServer().overworld();
-        String key = level.dimension().identifier().toString();
-
         if (engine.isTimedWeatherActive()) {
             int remaining = engine.getTimedWeatherTicksRemaining();
+            WeatherType active = engine.getTimedWeatherType();
             source.sendSuccess(() -> Component.literal(
-                "[WSM] Timed weather active: " + engine.getTimedWeatherType()
+                "[WSM] Timed weather active: " + active
                     + "\n  Remaining: " + WeatherEngine.formatTicks(remaining)
                     + " (" + remaining + " ticks)"
                     + "\n  Normal cycling resumes after timer expires."
             ), false);
-        } else {
-            int ticksLeft = engine.getTicksUntilNextChange(key);
-            BiomeCategory category = getSpawnBiomeCategory(level);
-            String forecast = ticksLeft > 0
-                ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
-                : "imminent";
-
-            source.sendSuccess(() -> Component.literal(
-                "[WSM] Next weather change in ~" + forecast
-                    + "\n  Spawn biome influence: " + category.name()
-            ), false);
+            return 1;
         }
+
+        ServerLevel level = source.getServer().overworld();
+        String key = level.dimension().identifier().toString();
+        int ticksLeft = engine.getTicksUntilNextChange(key);
+        BiomeCategory category = getSpawnBiomeCategory(level);
+        String forecast = ticksLeft > 0
+            ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
+            : "imminent";
+
+        source.sendSuccess(() -> Component.literal(
+            "[WSM] Next weather change in ~" + forecast
+                + "\n  Spawn biome influence: " + category.name()
+        ), false);
         return 1;
     }
 
     // ── Tick handler ─────────────────────────────────────────────────────
 
     private void onLevelTick(LevelTickEvent.Post event) {
-        if (event.getLevel().isClientSide()) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
-        if (!level.dimension().equals(Level.OVERWORLD)) return;
+        if (!Level.OVERWORLD.equals(level.dimension())) return;
 
-        String key = level.dimension().identifier().toString();
-        BiomeCategory biomeCategory = spawnBiomeCache.computeIfAbsent(
-            key, k -> getSpawnBiomeCategory(level));
+        if (level != trackedLevel) {
+            trackedLevel       = level;
+            trackedKey         = level.dimension().identifier().toString();
+            trackedApplier     = (type, duration) -> applyWeatherType(level, type, duration);
+            trackedBiomeSource = () -> getSpawnBiomeCategory(level);
+        }
 
-        WeatherType changed = engine.tick(key, biomeCategory, (type, duration) ->
-            applyWeatherType(level, type, duration)
-        );
+        // The overworld is the only level driven here, so this handler runs
+        // exactly once per server tick — which is what the global timed-override
+        // countdown requires. If this mod ever drives more dimensions, move the
+        // tickTimedOverride call to a ServerTickEvent.Post listener.
+        if (engine.tickTimedOverride(trackedApplier)) {
+            LOGGER.info("[WeatherStructureMod] Timed weather expired → CLEAR.");
+            return;
+        }
 
+        WeatherType changed = engine.tickWorld(trackedKey, trackedBiomeSource, trackedApplier);
         if (changed != null) {
-            if (engine.wasLastTickTimedExpiry()) {
-                LOGGER.info("[WeatherStructureMod] Timed weather expired → CLEAR.");
-            } else {
-                LOGGER.info("[WeatherStructureMod] Weather → {}.", changed);
-            }
+            LOGGER.info("[WeatherStructureMod] Weather → {}.", changed);
         }
     }
 
@@ -175,21 +200,34 @@ public class WeatherStructureModNeo {
     // since pre-1.16, so dispatching it works regardless of how Mojang
     // refactors the internals. `withSuppressedOutput()` silences the
     // command's "Set the weather to ..." chat to ops.
-    private void applyWeatherType(ServerLevel level, WeatherType type, int duration) {
+    //
+    // The duration argument is a vanilla `TimeArgument`, whose *default unit is
+    // ticks* — `/weather rain 60` means 60 ticks (3 seconds), not 60 seconds.
+    // Passing `duration / 20` therefore applied every weather 400x too short:
+    // a `/timedweather rain 60` cleared up after 3 seconds, and cycled weather
+    // got 49,999 ticks instead of the ~13.8 h intended to outlast the cycle.
+    // Emit the tick count with an explicit `t` suffix so the unit can't be
+    // misread by us or by a future vanilla change.
+    //
+    // Note the source is anchored at the server overworld, which is also the
+    // only level `onLevelTick` drives; extending this mod to other dimensions
+    // means giving the source an explicit level.
+    private void applyWeatherType(ServerLevel level, WeatherType type, int durationTicks) {
         MinecraftServer server = level.getServer();
         if (server == null) return;
-        int seconds = Math.max(1, duration / 20);
-        String cmd = switch (type) {
-            case CLEAR   -> "weather clear "   + seconds;
-            case RAIN    -> "weather rain "    + seconds;
-            case THUNDER -> "weather thunder " + seconds;
-        };
+        int ticks = Math.max(1, durationTicks);
         server.getCommands().performPrefixedCommand(
             server.createCommandSourceStack().withSuppressedOutput(),
-            cmd
+            "weather " + type.getCommandName() + " " + ticks + "t"
         );
     }
 
+    /**
+     * Resolves the spawn biome's climate category. Called only when the engine
+     * actually rolls new weather (once every 30–60 min), not every tick, so an
+     * operator moving spawn with {@code /setworldspawn} is picked up instead of
+     * being masked by a cache that never expires.
+     */
     private BiomeCategory getSpawnBiomeCategory(ServerLevel level) {
         BlockPos spawn = level.getRespawnData().pos();
         Holder<Biome> biome = level.getBiome(spawn);

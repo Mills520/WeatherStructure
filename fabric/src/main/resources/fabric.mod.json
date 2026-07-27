@@ -3,7 +3,7 @@
   "id": "weatherstructuremod",
   "version": "${version}",
   "name": "Weather & Structure Mod",
-  "description": "Biome-aware weather cycling (30-60 min), structure boost (+15%), timed weather & forecast commands. Fabric edition for Minecraft 26.1.x.",
+  "description": "Biome-aware weather cycling (30-60 min), denser structure spawns (~1.3x), timed weather & forecast commands. Fabric edition for Minecraft 26.1.x.",
   "authors": ["Mills520"],
   "contributors": ["See GitHub repository for full contributor list"],
   "contact": { "sources": "https://github.com/Mills520/weather-structure-mod" },
