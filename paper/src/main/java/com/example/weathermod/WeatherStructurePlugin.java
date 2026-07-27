@@ -459,10 +459,23 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             int boosted = applyStructureBoost(log);
             if (boosted > 0) {
                 log.info("[WSM] Structure boost applied to " + boosted + " placement(s).");
+                // Claim the marker only once something was actually mutated. Every
+                // path that reaches zero — placement fields missing, no world
+                // loaded, both lookups failing — returns before touching a field,
+                // so a zero pass leaves nothing to compound and a later /reload is
+                // free to retry (which is what rescues a load-order miss).
+                //
+                // Note the converse does NOT hold for a *partial* pass: the
+                // identity guard that stops double-boosting lives in
+                // applyStructureBoost and dies with it, so re-running after a
+                // partial success would shrink the placements that already
+                // succeeded a second time. Once any placement is boosted the
+                // marker has to stick.
+                System.setProperty(BOOST_MARKER_PROPERTY, "1");
             } else {
-                log.info("[WSM] Structure boost: no placements found — world may use a custom generator.");
+                log.info("[WSM] Structure boost: no placements found — world may use a "
+                    + "custom generator. Nothing was modified, so a /reload will retry.");
             }
-            System.setProperty(BOOST_MARKER_PROPERTY, "1");
         } catch (ClassNotFoundException | NoClassDefFoundError e) {
             log.warning("[WSM] NMS class not found — are you running a non-Paper server? "
                 + "Structure boost skipped.");
