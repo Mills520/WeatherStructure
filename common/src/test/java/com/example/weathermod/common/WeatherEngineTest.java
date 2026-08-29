@@ -10,15 +10,13 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.random.RandomGenerator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for the platform-independent weather engine.
- * <p>
- * The original v1.4.0 suite is kept verbatim at the top level (behaviour
- * parity), followed by expanded coverage for the rewritten engine.
  */
 class WeatherEngineTest {
 
@@ -36,6 +34,17 @@ class WeatherEngineTest {
         engine = new WeatherEngine();
         appliedWeather.clear();
         appliedDurations.clear();
+    }
+
+    /** Drives one world's cycling timer down to the tick before it rolls. */
+    private static int windToJustBeforeChange(WeatherEngine e, String key,
+                                             WeatherEngine.WeatherApplier applier) {
+        int interval = e.getTicksUntilNextChange(key);
+        for (int i = 0; i < interval - 1; i++) {
+            assertNull(e.tickWorld(key, BiomeCategory.TEMPERATE, applier),
+                "no change expected before the timer elapses (i=" + i + ")");
+        }
+        return interval;
     }
 
     // ── randomInterval tests ─────────────────────────────────────────────
@@ -77,20 +86,18 @@ class WeatherEngineTest {
 
     @Test
     void firstTick_initialisesTimer_noWeatherChange() {
-        WeatherType result = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        WeatherType result = engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         assertNull(result, "First tick should not change weather");
         assertTrue(appliedWeather.isEmpty());
     }
 
     @Test
     void normalCycling_eventuallyChangesWeather() {
-        // First tick: initialise
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
 
-        // Tick until weather changes (will happen within MAX_TICKS)
         WeatherType changed = null;
         for (int i = 0; i < WeatherEngine.MAX_TICKS + 1; i++) {
-            changed = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+            changed = engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
             if (changed != null) break;
         }
         assertNotNull(changed, "Weather should change within MAX_TICKS");
@@ -102,7 +109,7 @@ class WeatherEngineTest {
 
     @Test
     void setTimedWeather_appliesImmediately() {
-        engine.setTimedWeather(WeatherType.THUNDER, 200, recorder);
+        assertEquals(200, engine.setTimedWeather(WeatherType.THUNDER, 200, recorder));
 
         assertTrue(engine.isTimedWeatherActive());
         assertEquals(WeatherType.THUNDER, engine.getTimedWeatherType());
@@ -112,16 +119,13 @@ class WeatherEngineTest {
 
     @Test
     void timedWeather_pausesNormalCycling() {
-        // Init normal cycling
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
-
-        // Set short timed weather
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         engine.setTimedWeather(WeatherType.RAIN, 5, recorder);
         appliedWeather.clear();
 
-        // Tick 4 times — timed weather should count down, no normal cycling
         for (int i = 0; i < 4; i++) {
-            assertNull(engine.tick("world", BiomeCategory.TEMPERATE, recorder));
+            assertFalse(engine.tickTimedOverride(recorder));
+            assertNull(engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder));
         }
         assertTrue(engine.isTimedWeatherActive());
         assertTrue(appliedWeather.isEmpty());
@@ -129,40 +133,39 @@ class WeatherEngineTest {
 
     @Test
     void timedWeather_revertsToClearOnExpiry() {
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         engine.setTimedWeather(WeatherType.RAIN, 3, recorder);
         appliedWeather.clear();
 
-        // Tick 3 times to expire
-        WeatherType last = null;
+        boolean expired = false;
         for (int i = 0; i < 3; i++) {
-            last = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+            expired = engine.tickTimedOverride(recorder);
         }
 
+        assertTrue(expired, "Third tick should report the expiry");
         assertFalse(engine.isTimedWeatherActive());
+        assertNull(engine.getTimedWeatherType());
         assertEquals(List.of(WeatherType.CLEAR), appliedWeather);
-        assertEquals(WeatherType.CLEAR, last, "Expiring tick should return CLEAR");
         assertTrue(engine.wasLastTickTimedExpiry(),
             "Engine should report timed-expiry on the expiring tick");
     }
 
     @Test
     void wasLastTickTimedExpiry_falseForNormalInit() {
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.tickTimedOverride(recorder);
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         assertFalse(engine.wasLastTickTimedExpiry());
     }
 
     @Test
     void wasLastTickTimedExpiry_resetsOnNextTick() {
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         engine.setTimedWeather(WeatherType.RAIN, 1, recorder);
 
-        // The 1-tick timer expires on the very next tick
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        assertTrue(engine.tickTimedOverride(recorder));
         assertTrue(engine.wasLastTickTimedExpiry());
 
-        // Next tick — no longer the expiry tick
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        assertFalse(engine.tickTimedOverride(recorder));
         assertFalse(engine.wasLastTickTimedExpiry());
     }
 
@@ -181,11 +184,16 @@ class WeatherEngineTest {
     }
 
     @Test
+    void getTicksUntilNextChange_nullKey() {
+        assertEquals(-1, engine.getTicksUntilNextChange(null));
+    }
+
+    @Test
     void getTicksUntilNextChange_afterInit() {
-        engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+        engine.tickWorld("world", BiomeCategory.TEMPERATE, recorder);
         int ticks = engine.getTicksUntilNextChange("world");
-        assertTrue(ticks >= WeatherEngine.MIN_TICKS - 1 && ticks <= WeatherEngine.MAX_TICKS,
-            "Initial timer should be within [MIN-1, MAX], got " + ticks);
+        assertTrue(ticks >= WeatherEngine.MIN_TICKS && ticks <= WeatherEngine.MAX_TICKS,
+            "Initial timer should be within [MIN, MAX], got " + ticks);
     }
 
     // ── WeatherType tests ────────────────────────────────────────────────
@@ -222,7 +230,6 @@ class WeatherEngineTest {
 
     @Test
     void biomeCategory_weightedRandom_producesAllTypes() {
-        // Run enough trials that all weather types should appear for TEMPERATE (equal weights)
         Map<WeatherType, Integer> counts = new EnumMap<>(WeatherType.class);
         for (WeatherType t : WeatherType.cachedValues()) counts.put(t, 0);
 
@@ -266,10 +273,6 @@ class WeatherEngineTest {
         assertTrue(counts.get(WeatherType.RAIN) > counts.get(WeatherType.CLEAR),
             "WET biome should produce more RAIN than CLEAR");
     }
-
-    // ═════════════════════════════════════════════════════════════════════
-    // Expanded coverage for the rewritten engine (v1.7.0)
-    // ═════════════════════════════════════════════════════════════════════
 
     @Nested
     @DisplayName("WeatherType")
@@ -429,13 +432,20 @@ class WeatherEngineTest {
     class ValidationTests {
 
         @Test
-        void tickRejectsNullArguments() {
+        void tickWorldRejectsNullArguments() {
             assertThrows(NullPointerException.class,
-                () -> engine.tick(null, BiomeCategory.TEMPERATE, recorder));
+                () -> engine.tickWorld(null, BiomeCategory.TEMPERATE, recorder));
             assertThrows(NullPointerException.class,
-                () -> engine.tick("w", null, recorder));
+                () -> engine.tickWorld("w", (BiomeCategory) null, recorder));
             assertThrows(NullPointerException.class,
-                () -> engine.tick("w", BiomeCategory.TEMPERATE, null));
+                () -> engine.tickWorld("w", (WeatherEngine.BiomeCategorySource) null, recorder));
+            assertThrows(NullPointerException.class,
+                () -> engine.tickWorld("w", BiomeCategory.TEMPERATE, null));
+        }
+
+        @Test
+        void tickTimedOverrideRejectsNullApplier() {
+            assertThrows(NullPointerException.class, () -> engine.tickTimedOverride(null));
         }
 
         @Test
@@ -448,22 +458,41 @@ class WeatherEngineTest {
 
         @Test
         void setTimedWeatherClampsNonPositiveToOne() {
-            engine.setTimedWeather(WeatherType.RAIN, 0, recorder);
+            assertEquals(1, engine.setTimedWeather(WeatherType.RAIN, 0, recorder));
             assertTrue(engine.isTimedWeatherActive(), "0 ticks should clamp to 1 and arm the timer");
             assertEquals(1, engine.getTimedWeatherTicksRemaining());
             assertEquals(WeatherType.RAIN, appliedWeather.get(0));
             assertEquals(1, appliedDurations.get(0), "weather applied with the clamped duration");
 
             // Expires on the very next tick.
-            WeatherType result = engine.tick("w", BiomeCategory.TEMPERATE, recorder);
-            assertEquals(WeatherType.CLEAR, result);
+            assertTrue(engine.tickTimedOverride(recorder));
             assertFalse(engine.isTimedWeatherActive());
         }
 
         @Test
         void setTimedWeatherNegativeIsClamped() {
-            engine.setTimedWeather(WeatherType.THUNDER, -500, recorder);
+            assertEquals(1, engine.setTimedWeather(WeatherType.THUNDER, -500, recorder));
             assertEquals(1, engine.getTimedWeatherTicksRemaining());
+        }
+
+        @Test
+        void setTimedWeatherClampsToTheDocumentedMaximum() {
+            int held = engine.setTimedWeather(WeatherType.RAIN, Integer.MAX_VALUE, recorder);
+            assertEquals(WeatherEngine.MAX_TIMED_TICKS, held,
+                "an out-of-range request must not wedge cycling for weeks");
+            assertEquals(WeatherEngine.MAX_TIMED_TICKS, engine.getTimedWeatherTicksRemaining());
+            assertEquals(WeatherEngine.MAX_TIMED_TICKS, appliedDurations.get(0),
+                "the clamped duration is what gets applied");
+        }
+
+        @Test
+        void maxTimedTicksIsTwentyFourHours() {
+            assertEquals(24 * 60 * 60 * 20, WeatherEngine.MAX_TIMED_TICKS);
+        }
+
+        @Test
+        void forgetToleratesNull() {
+            assertDoesNotThrow(() -> engine.forget(null));
         }
     }
 
@@ -485,42 +514,149 @@ class WeatherEngineTest {
             appliedWeather.clear();
             appliedDurations.clear();
 
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder); // 2 -> 1
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder); // 1 -> 0, expire
+            assertFalse(engine.tickTimedOverride(recorder)); // 2 -> 1
+            assertTrue(engine.tickTimedOverride(recorder));  // 1 -> 0, expire
 
             assertEquals(List.of(WeatherType.CLEAR), appliedWeather);
             assertEquals(WeatherEngine.WEATHER_DURATION, appliedDurations.get(0));
         }
 
         @Test
+        void inactiveOverrideIsACheapNoOp() {
+            assertFalse(engine.tickTimedOverride(recorder));
+            assertTrue(appliedWeather.isEmpty());
+            assertFalse(engine.wasLastTickTimedExpiry());
+        }
+
+        @Test
         void cyclingTimerIsPausedThenRearmedAfterExpiry() {
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder); // init cycling timer
+            engine.tickWorld("w", BiomeCategory.TEMPERATE, recorder); // init cycling timer
             int beforeOverride = engine.getTicksUntilNextChange("w");
 
             engine.setTimedWeather(WeatherType.RAIN, 3, recorder);
             // Cycling timer must not advance while the override is active.
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder);
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder);
+            engine.tickTimedOverride(recorder);
+            engine.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
+            engine.tickTimedOverride(recorder);
+            engine.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
             assertEquals(beforeOverride, engine.getTicksUntilNextChange("w"),
                 "cycling timer should be frozen during a timed override");
 
-            engine.tick("w", BiomeCategory.TEMPERATE, recorder); // expiry re-arms timer
+            assertTrue(engine.tickTimedOverride(recorder)); // expiry re-arms timers
             int afterExpiry = engine.getTicksUntilNextChange("w");
             assertTrue(afterExpiry >= WeatherEngine.MIN_TICKS && afterExpiry <= WeatherEngine.MAX_TICKS,
                 "timer should be re-armed to a fresh interval, got " + afterExpiry);
         }
 
         @Test
-        void timedCountdownIsGlobalAcrossWorlds() {
-            // Documents the contract: the timed countdown decrements on every
-            // tick() call regardless of world, so platforms must drive it once
-            // per server tick (single overworld on Fabric/NeoForge; primary
-            // world only on Paper).
+        void countdownAdvancesOncePerServerTickNotOncePerWorld() {
+            // The bug this guards: tick() used to decrement the global override
+            // once per world, so `/timedweather rain 60` on a three-world server
+            // expired in 20 seconds.
             engine.setTimedWeather(WeatherType.RAIN, 5, recorder);
-            engine.tick("world_a", BiomeCategory.TEMPERATE, recorder);
-            engine.tick("world_b", BiomeCategory.TEMPERATE, recorder);
-            assertEquals(3, engine.getTimedWeatherTicksRemaining(),
-                "two tick() calls should decrement the global timed counter twice");
+
+            engine.tickTimedOverride(recorder);
+            engine.tickWorld("world_a", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("world_b", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("world_c", BiomeCategory.TEMPERATE, recorder);
+
+            assertEquals(4, engine.getTimedWeatherTicksRemaining(),
+                "one server tick must cost exactly one tick of the override, "
+                    + "however many worlds are ticked");
+        }
+
+        @Test
+        void expiryRearmsEveryTrackedWorld() {
+            // Seeded so the interval is known and 'a' can be wound to a value
+            // below MIN_TICKS — proving the timer was genuinely re-armed rather
+            // than just happening to look plausible.
+            WeatherEngine seeded = new WeatherEngine(new Random(31337L));
+            seeded.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
+            seeded.tickWorld("b", BiomeCategory.TEMPERATE, recorder);
+
+            int intervalA = seeded.getTicksUntilNextChange("a");
+            int windDown  = intervalA - WeatherEngine.MIN_TICKS + 1;
+            for (int i = 0; i < windDown; i++) {
+                seeded.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
+            }
+            assertEquals(WeatherEngine.MIN_TICKS - 1, seeded.getTicksUntilNextChange("a"));
+
+            seeded.setTimedWeather(WeatherType.THUNDER, 1, recorder);
+            assertTrue(seeded.tickTimedOverride(recorder));
+
+            for (String key : new String[]{"a", "b"}) {
+                int left = seeded.getTicksUntilNextChange(key);
+                assertTrue(left >= WeatherEngine.MIN_TICKS && left <= WeatherEngine.MAX_TICKS,
+                    "'" + key + "' should be re-armed after expiry, got " + left);
+            }
+        }
+
+        @Test
+        void clearTimedWeatherResumesCyclingWithoutApplyingWeather() {
+            engine.setTimedWeather(WeatherType.THUNDER, 500, recorder);
+            appliedWeather.clear();
+
+            engine.clearTimedWeather();
+
+            assertFalse(engine.isTimedWeatherActive());
+            assertNull(engine.getTimedWeatherType());
+            assertEquals(0, engine.getTimedWeatherTicksRemaining());
+            assertTrue(appliedWeather.isEmpty(), "cancelling must not apply any weather");
+            // Cycling is live again.
+            assertNull(engine.tickWorld("w", BiomeCategory.TEMPERATE, recorder));
+            assertNotEquals(-1, engine.getTicksUntilNextChange("w"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Lazy biome resolution")
+    class BiomeSourceTests {
+
+        @Test
+        void sourceIsConsultedOnlyWhenWeatherActuallyChanges() {
+            WeatherEngine seeded = new WeatherEngine(new Random(4242L));
+            AtomicInteger lookups = new AtomicInteger();
+            WeatherEngine.BiomeCategorySource source = () -> {
+                lookups.incrementAndGet();
+                return BiomeCategory.WET;
+            };
+
+            seeded.tickWorld("w", source, recorder);
+            int interval = seeded.getTicksUntilNextChange("w");
+            for (int i = 0; i < interval - 1; i++) {
+                assertNull(seeded.tickWorld("w", source, recorder));
+            }
+            assertEquals(0, lookups.get(),
+                "resolving the spawn biome 20x a second is exactly what this avoids");
+
+            assertNotNull(seeded.tickWorld("w", source, recorder));
+            assertEquals(1, lookups.get(), "one lookup per weather change");
+        }
+
+        @Test
+        void nullFromSourceFallsBackToTemperateInsteadOfStalling() {
+            WeatherEngine seeded = new WeatherEngine(new Random(99L));
+            seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
+            windToJustBeforeChange(seeded, "w", recorder);
+
+            WeatherType changed = seeded.tickWorld("w", () -> null, recorder);
+            assertNotNull(changed, "a source that can't resolve must not stop cycling");
+            assertEquals(1, appliedWeather.size());
+        }
+
+        @Test
+        void aThrowingSourceDoesNotWedgeTheTimer() {
+            WeatherEngine seeded = new WeatherEngine(new Random(555L));
+            seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
+            windToJustBeforeChange(seeded, "w", recorder);
+
+            assertThrows(IllegalStateException.class, () ->
+                seeded.tickWorld("w", () -> { throw new IllegalStateException("chunk not loaded"); }, recorder));
+
+            int left = seeded.getTicksUntilNextChange("w");
+            assertTrue(left >= WeatherEngine.MIN_TICKS && left <= WeatherEngine.MAX_TICKS,
+                "timer must be re-armed rather than retrying (and going negative) every "
+                    + "tick after a failed biome lookup, got " + left);
         }
     }
 
@@ -530,32 +666,40 @@ class WeatherEngineTest {
 
         @Test
         void worldsTrackIndependentTimers() {
-            engine.tick("a", BiomeCategory.TEMPERATE, recorder);
-            engine.tick("b", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("b", BiomeCategory.TEMPERATE, recorder);
             // Advance only 'a'.
-            engine.tick("a", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
             int aTicks = engine.getTicksUntilNextChange("a");
             int bTicks = engine.getTicksUntilNextChange("b");
             assertTrue(aTicks >= 0 && bTicks >= 0);
-            // 'b' was initialised but never advanced; 'a' was advanced once.
-            // They are tracked separately (both within bounds).
             assertTrue(bTicks <= WeatherEngine.MAX_TICKS && bTicks >= WeatherEngine.MIN_TICKS);
+            assertEquals(2, engine.trackedWorldCount());
         }
 
         @Test
         void forgetResetsAWorld() {
-            engine.tick("a", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
             assertNotEquals(-1, engine.getTicksUntilNextChange("a"));
             engine.forget("a");
             assertEquals(-1, engine.getTicksUntilNextChange("a"));
+            assertEquals(0, engine.trackedWorldCount());
             // Forgetting an unknown world is a harmless no-op.
             assertDoesNotThrow(() -> engine.forget("never-seen"));
         }
 
         @Test
+        void trackedWorldKeysIsAnUnmodifiableView() {
+            engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
+            assertEquals(java.util.Set.of("a"), engine.trackedWorldKeys());
+            assertThrows(UnsupportedOperationException.class,
+                () -> engine.trackedWorldKeys().add("b"));
+        }
+
+        @Test
         void resetClearsAllState() {
-            engine.tick("a", BiomeCategory.TEMPERATE, recorder);
-            engine.tick("b", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder);
+            engine.tickWorld("b", BiomeCategory.TEMPERATE, recorder);
             engine.setTimedWeather(WeatherType.THUNDER, 100, recorder);
 
             engine.reset();
@@ -565,10 +709,11 @@ class WeatherEngineTest {
             assertEquals(0, engine.getTimedWeatherTicksRemaining());
             assertEquals(-1, engine.getTicksUntilNextChange("a"));
             assertEquals(-1, engine.getTicksUntilNextChange("b"));
+            assertEquals(0, engine.trackedWorldCount());
             assertFalse(engine.wasLastTickTimedExpiry());
 
             // Engine is reusable after reset.
-            assertNull(engine.tick("a", BiomeCategory.TEMPERATE, recorder));
+            assertNull(engine.tickWorld("a", BiomeCategory.TEMPERATE, recorder));
             assertNotEquals(-1, engine.getTicksUntilNextChange("a"));
         }
     }
@@ -581,7 +726,7 @@ class WeatherEngineTest {
         void initialIntervalMatchesSeededSequence() {
             long seed = 987654321L;
             WeatherEngine seeded = new WeatherEngine(new Random(seed));
-            seeded.tick("w", BiomeCategory.TEMPERATE, recorder);
+            seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
 
             int expected = WeatherEngine.MIN_TICKS + new Random(seed).nextInt(WeatherEngine.INTERVAL_RANGE);
             assertEquals(expected, seeded.getTicksUntilNextChange("w"),
@@ -591,24 +736,86 @@ class WeatherEngineTest {
         @Test
         void cyclingChangesExactlyWhenTimerHitsZero() {
             WeatherEngine seeded = new WeatherEngine(new Random(2024L));
-            seeded.tick("w", BiomeCategory.TEMPERATE, recorder);
-            int interval = seeded.getTicksUntilNextChange("w");
+            seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
+            windToJustBeforeChange(seeded, "w", recorder);
 
-            // No change for the first (interval - 1) ticks...
-            for (int i = 0; i < interval - 1; i++) {
-                assertNull(seeded.tick("w", BiomeCategory.TEMPERATE, recorder),
-                    "no change expected before the timer elapses (i=" + i + ")");
-            }
-            // ...then a change on the tick the timer reaches zero.
-            WeatherType changed = seeded.tick("w", BiomeCategory.TEMPERATE, recorder);
+            WeatherType changed = seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
             assertNotNull(changed, "weather should change exactly when the timer elapses");
             assertEquals(1, appliedWeather.size());
             assertEquals(WeatherEngine.WEATHER_DURATION, appliedDurations.get(0));
         }
 
         @Test
+        void aThrowingApplierDoesNotWedgeTheTimer() {
+            WeatherEngine seeded = new WeatherEngine(new Random(7L));
+            seeded.tickWorld("w", BiomeCategory.TEMPERATE, recorder);
+            windToJustBeforeChange(seeded, "w", recorder);
+
+            assertThrows(IllegalStateException.class, () ->
+                seeded.tickWorld("w", BiomeCategory.TEMPERATE, (t, d) -> {
+                    throw new IllegalStateException("platform blew up");
+                }));
+
+            int left = seeded.getTicksUntilNextChange("w");
+            assertTrue(left >= WeatherEngine.MIN_TICKS && left <= WeatherEngine.MAX_TICKS,
+                "timer must be re-armed even if the platform callback throws, got " + left);
+        }
+
+        @Test
         void nullRngRejected() {
             assertThrows(NullPointerException.class, () -> new WeatherEngine(null));
+        }
+    }
+
+    @Nested
+    @DisplayName("Deprecated combined tick() (source compatibility)")
+    @SuppressWarnings("deprecation")
+    class DeprecatedTickTests {
+
+        @Test
+        void stillInitialisesAndCycles() {
+            assertNull(engine.tick("world", BiomeCategory.TEMPERATE, recorder));
+            WeatherType changed = null;
+            for (int i = 0; i < WeatherEngine.MAX_TICKS + 1; i++) {
+                changed = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+                if (changed != null) break;
+            }
+            assertNotNull(changed);
+        }
+
+        @Test
+        void stillRevertsToClearOnExpiry() {
+            engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+            engine.setTimedWeather(WeatherType.RAIN, 3, recorder);
+            appliedWeather.clear();
+
+            WeatherType last = null;
+            for (int i = 0; i < 3; i++) {
+                last = engine.tick("world", BiomeCategory.TEMPERATE, recorder);
+            }
+            assertEquals(WeatherType.CLEAR, last);
+            assertTrue(engine.wasLastTickTimedExpiry());
+            assertFalse(engine.isTimedWeatherActive());
+        }
+
+        @Test
+        void documentsTheOldPerWorldCountdown() {
+            // Why tick() is deprecated: each call decrements the global override,
+            // so a caller ticking two worlds burns two ticks of it per server tick.
+            engine.setTimedWeather(WeatherType.RAIN, 5, recorder);
+            engine.tick("world_a", BiomeCategory.TEMPERATE, recorder);
+            engine.tick("world_b", BiomeCategory.TEMPERATE, recorder);
+            assertEquals(3, engine.getTimedWeatherTicksRemaining());
+        }
+
+        @Test
+        void rejectsNullArguments() {
+            assertThrows(NullPointerException.class,
+                () -> engine.tick(null, BiomeCategory.TEMPERATE, recorder));
+            assertThrows(NullPointerException.class,
+                () -> engine.tick("w", null, recorder));
+            assertThrows(NullPointerException.class,
+                () -> engine.tick("w", BiomeCategory.TEMPERATE, null));
         }
     }
 
@@ -643,9 +850,24 @@ class WeatherEngineTest {
         }
 
         @Test
-        void formatTicks_largeValue() {
-            // 90 minutes exactly
-            assertEquals("90m", WeatherEngine.formatTicks(90 * 60 * 20));
+        void formatTicks_promotesToHours() {
+            // The /timedweather range runs to 24 h; "1440m" was unreadable.
+            assertEquals("1h",      WeatherEngine.formatTicks(60 * 60 * 20));
+            assertEquals("1h 30m",  WeatherEngine.formatTicks(90 * 60 * 20));
+            assertEquals("2h 5m",   WeatherEngine.formatTicks((2 * 3600 + 5 * 60) * 20));
+            assertEquals("24h",     WeatherEngine.formatTicks(WeatherEngine.MAX_TIMED_TICKS));
+        }
+
+        @Test
+        void formatTicks_dropsSecondsOnceHoursAreShown() {
+            // Only the two most significant units are rendered.
+            assertEquals("1h", WeatherEngine.formatTicks((3600 + 30) * 20));
+        }
+
+        @Test
+        void formatTicks_maxCycleIntervalReadsAsOneHour() {
+            assertEquals("1h", WeatherEngine.formatTicks(WeatherEngine.MAX_TICKS));
+            assertEquals("30m", WeatherEngine.formatTicks(WeatherEngine.MIN_TICKS));
         }
     }
 
