@@ -29,13 +29,13 @@ JDK 25 installation under the usual install locations
 
 Install Java 25 from <https://adoptium.net> (or any vendor).
 
-> **Pin the Gradle checksum.** This repo ships a small `gradlew` shim instead of
+> **Gradle checksum.** This repo ships a small `gradlew` shim instead of
 > a committed `gradle-wrapper.jar`. It refuses to install a distribution it
-> can't verify, but the strong check needs `distributionSha256Sum` set in
-> `gradle/wrapper/gradle-wrapper.properties` — take the value from
-> <https://gradle.org/release-checksums/> and uncomment the line there. Without
-> it the shim falls back to the publisher's `.sha256`, which catches corruption
-> but not a compromised origin.
+> can't verify against `distributionSha256Sum` in
+> `gradle/wrapper/gradle-wrapper.properties`. When bumping the Gradle version,
+> update that value from <https://gradle.org/release-checksums/> in the same
+> change. If it is ever removed the shim falls back to the publisher's
+> `.sha256`, which catches corruption but not a compromised origin.
 
 **Linux / macOS:**
 ```bash
