@@ -54,8 +54,11 @@ case "$DIST_URL" in
     *) die "refusing to download over a non-HTTPS URL: $DIST_URL" ;;
 esac
 
+# The authority ends at the first '/', '?' or '#'. Cutting only at '/' let
+# https://evil.example?@services.gradle.org/x.zip pass as services.gradle.org
+# while curl connected to evil.example.
 DIST_HOST=$(printf '%s' "$DIST_URL" \
-    | sed -e 's#^https://##' -e 's#/.*##' -e 's#.*@##' -e 's#:[0-9]*$##')
+    | sed -e 's#^https://##' -e 's|[/?#].*||' -e 's#.*@##' -e 's#:[0-9]*$##')
 host_allowed=no
 for allowed in $ALLOWED_HOSTS; do
     if [ "$DIST_HOST" = "$allowed" ]; then host_allowed=yes; break; fi
