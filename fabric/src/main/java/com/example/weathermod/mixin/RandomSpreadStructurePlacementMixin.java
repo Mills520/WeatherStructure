@@ -1,5 +1,6 @@
 package com.example.weathermod.mixin;
 
+import com.example.weathermod.common.StructureDensity;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -20,10 +21,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(RandomSpreadStructurePlacement.class)
 public abstract class RandomSpreadStructurePlacementMixin {
 
-    private static final float DENSITY_FACTOR = 0.87f;
-    private static final int MIN_SPACING    = 2;
-    private static final int MIN_SEPARATION = 1;
-
     @Mutable @Shadow private int spacing;
     @Mutable @Shadow private int separation;
 
@@ -41,16 +38,14 @@ public abstract class RandomSpreadStructurePlacementMixin {
         if (this.wsm_densityBoosted) return;
         this.wsm_densityBoosted = true;
 
-        // The clamps only ever reduce. Written the other way round
-        // (max(MIN_SPACING, scaled)) they raised spacing from 1 to 2 and
-        // separation from 0 to 1 on placements already at or below the floor,
-        // making those structures rarer — the opposite of the intent.
-        int newSpacing    = Math.min(this.spacing,    Math.max(MIN_SPACING,    (int) (this.spacing    * DENSITY_FACTOR)));
-        int newSeparation = Math.min(this.separation, Math.max(MIN_SEPARATION, (int) (this.separation * DENSITY_FACTOR)));
-        // Vanilla requires separation < spacing.
-        if (newSeparation >= newSpacing) newSeparation = Math.max(0, newSpacing - 1);
+        // The math (factor, floors, the separation < spacing invariant) lives in
+        // common/ as plain ints so it is shared with the other loader and the
+        // Paper plugin, and unit-tested. Both results are computed from the
+        // original pair before either field is written.
+        int oldSpacing    = this.spacing;
+        int oldSeparation = this.separation;
 
-        this.spacing    = newSpacing;
-        this.separation = newSeparation;
+        this.spacing    = StructureDensity.boostedSpacing(oldSpacing);
+        this.separation = StructureDensity.boostedSeparation(oldSpacing, oldSeparation);
     }
 }
