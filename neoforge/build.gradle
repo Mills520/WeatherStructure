@@ -18,7 +18,12 @@ neoForge {
 
 dependencies {
     implementation project(':common')
-    jarJar(project(':common')) { version { prefer mod_version } }
+    // No `{ version { ... } }` block here. A project dependency has no version
+    // DSL, so Groovy resolved that call against the enclosing project instead and
+    // set *this project's* version to the closure — the jar shipped as
+    // weather-structure-mod-neoforge-build_…$_closure10@<hash>.jar. ModDevGradle
+    // derives the jar-in-jar range ("[<common version>,)") from the project itself.
+    jarJar project(':common')
 }
 
 def targetJava = 25

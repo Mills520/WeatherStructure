@@ -1,7 +1,9 @@
 package com.example.weathermod;
 
 import com.example.weathermod.common.BiomeCategory;
+import com.example.weathermod.common.WeatherCommands;
 import com.example.weathermod.common.WeatherEngine;
+import com.example.weathermod.common.WeatherMessages;
 import com.example.weathermod.common.WeatherType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -32,7 +34,7 @@ public class WeatherStructureMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     /** 24 hours — matches {@link WeatherEngine#MAX_TIMED_TICKS}. */
-    private static final int MAX_SECONDS = WeatherEngine.MAX_TIMED_TICKS / 20;
+    private static final int MAX_SECONDS = WeatherCommands.MAX_TIMED_SECONDS;
 
     private final WeatherEngine engine = new WeatherEngine();
 
@@ -102,66 +104,36 @@ public class WeatherStructureMod implements ModInitializer {
     private int executeTimedWeather(CommandSourceStack source, String type, int seconds) {
         WeatherType weatherType = WeatherType.fromName(type);
         if (weatherType == null) {
-            source.sendFailure(Component.literal("Invalid weather type! Use: clear, rain, or thunder."));
+            source.sendFailure(Component.literal(WeatherMessages.INVALID_WEATHER_TYPE));
             return 0;
         }
 
         ServerLevel level = source.getServer().overworld();
-        int held = engine.setTimedWeather(weatherType, seconds * 20, (wt, duration) ->
-            applyWeatherType(level, wt, duration)
+        int held = engine.setTimedWeather(weatherType, WeatherCommands.secondsToTicks(seconds),
+            (wt, duration) -> applyWeatherType(level, wt, duration)
         );
 
-        int heldSeconds = held / 20;
-        source.sendSuccess(() -> Component.literal(
-            "[WSM] Weather set to " + weatherType.getCommandName() + " for " + heldSeconds
-                + "s. Will revert to CLEAR after."
-        ), true);
+        int heldSeconds = held / WeatherCommands.TICKS_PER_SECOND;
+        String message = WeatherMessages.timedWeatherSet(weatherType, heldSeconds);
+        source.sendSuccess(() -> Component.literal(message), true);
         LOGGER.info("[WeatherStructureMod] Timed weather: {} for {}s.", weatherType, heldSeconds);
         return 1;
     }
 
     private int executeTimedWeatherStatus(CommandSourceStack source) {
-        if (engine.isTimedWeatherActive()) {
-            int remaining = engine.getTimedWeatherTicksRemaining();
-            WeatherType active = engine.getTimedWeatherType();
-            source.sendSuccess(() -> Component.literal(
-                "[WSM] Timed weather: " + active
-                    + " — " + WeatherEngine.formatTicks(remaining)
-                    + " remaining (" + remaining + " ticks)"
-            ), false);
-        } else {
-            source.sendSuccess(() -> Component.literal(
-                "[WSM] No timed weather active. Normal cycling is running."
-            ), false);
-        }
+        // Built now, not inside the supplier: the reply must describe the engine
+        // as it was when the command ran.
+        String message = WeatherMessages.timedWeatherStatus(engine);
+        source.sendSuccess(() -> Component.literal(message), false);
         return 1;
     }
 
     private int executeWeatherForecast(CommandSourceStack source) {
-        if (engine.isTimedWeatherActive()) {
-            int remaining = engine.getTimedWeatherTicksRemaining();
-            WeatherType active = engine.getTimedWeatherType();
-            source.sendSuccess(() -> Component.literal(
-                "[WSM] Timed weather active: " + active
-                    + "\n  Remaining: " + WeatherEngine.formatTicks(remaining)
-                    + " (" + remaining + " ticks)"
-                    + "\n  Normal cycling resumes after timer expires."
-            ), false);
-            return 1;
-        }
-
         ServerLevel level = source.getServer().overworld();
         String key = level.dimension().identifier().toString();
-        int ticksLeft = engine.getTicksUntilNextChange(key);
-        BiomeCategory category = getSpawnBiomeCategory(level);
-        String forecast = ticksLeft > 0
-            ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
-            : "imminent";
-
-        source.sendSuccess(() -> Component.literal(
-            "[WSM] Next weather change in ~" + forecast
-                + "\n  Spawn biome influence: " + category.name()
-        ), false);
+        // The biome is only resolved when no timed override is running.
+        String message = WeatherMessages.forecast(engine, key, () -> getSpawnBiomeCategory(level));
+        source.sendSuccess(() -> Component.literal(message), false);
         return 1;
     }
 
@@ -203,13 +175,11 @@ public class WeatherStructureMod implements ModInitializer {
     // refactors the internals. `withSuppressedOutput()` silences the
     // command's "Set the weather to ..." chat to ops.
     //
-    // The duration argument is a vanilla `TimeArgument`, whose *default unit is
-    // ticks* — `/weather rain 60` means 60 ticks (3 seconds), not 60 seconds.
-    // Passing `duration / 20` therefore applied every weather 400x too short:
-    // a `/timedweather rain 60` cleared up after 3 seconds, and cycled weather
-    // got 49,999 ticks instead of the ~13.8 h intended to outlast the cycle.
-    // Emit the tick count with an explicit `t` suffix so the unit can't be
-    // misread by us or by a future vanilla change.
+    // The command line itself comes from WeatherCommands.vanillaWeatherCommand,
+    // which emits the duration in ticks with an explicit `t` suffix (the
+    // argument is a `TimeArgument` whose default unit is ticks; passing
+    // `duration / 20` once applied every weather 400x too short). It lives in
+    // common/ so that unit is covered by a test.
     //
     // Note the source is anchored at the server overworld, which is also the
     // only level `onWorldTick` drives; extending this mod to other dimensions
@@ -217,10 +187,9 @@ public class WeatherStructureMod implements ModInitializer {
     private void applyWeatherType(ServerLevel level, WeatherType type, int durationTicks) {
         MinecraftServer server = level.getServer();
         if (server == null) return;
-        int ticks = Math.max(1, durationTicks);
         server.getCommands().performPrefixedCommand(
             server.createCommandSourceStack().withSuppressedOutput(),
-            "weather " + type.getCommandName() + " " + ticks + "t"
+            WeatherCommands.vanillaWeatherCommand(type, durationTicks)
         );
     }
 

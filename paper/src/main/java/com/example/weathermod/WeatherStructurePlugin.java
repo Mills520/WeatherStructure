@@ -1,7 +1,10 @@
 package com.example.weathermod;
 
 import com.example.weathermod.common.BiomeCategory;
+import com.example.weathermod.common.StructureDensity;
+import com.example.weathermod.common.WeatherCommands;
 import com.example.weathermod.common.WeatherEngine;
+import com.example.weathermod.common.WeatherMessages;
 import com.example.weathermod.common.WeatherType;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,6 +29,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -48,15 +52,8 @@ import java.util.logging.Logger;
  */
 public class WeatherStructurePlugin extends JavaPlugin implements Listener {
 
-    private static final float DENSITY_FACTOR  = 0.87f;
-    private static final int   MIN_SPACING     = 2;
-    private static final int   MIN_SEPARATION  = 1;
-
     /** 24 hours — matches {@link WeatherEngine#MAX_TIMED_TICKS}. */
-    private static final int MAX_SECONDS = WeatherEngine.MAX_TIMED_TICKS / 20;
-
-    /** Longest user-supplied token echoed back in a reply. */
-    private static final int MAX_ECHO_LENGTH = 32;
+    private static final int MAX_SECONDS = WeatherCommands.MAX_TIMED_SECONDS;
 
     /**
      * JVM-wide marker that the structure boost already ran.
@@ -311,16 +308,15 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             return true;
         }
 
-        int seconds;
-        try {
-            seconds = Integer.parseInt(args[1]);
-        } catch (NumberFormatException e) {
+        OptionalInt parsed = WeatherCommands.parseSeconds(args[1]);
+        if (parsed.isEmpty()) {
             // args[1] is attacker-controlled: strip section signs and control
             // characters and cap the length before echoing it back to chat.
-            sender.sendMessage("[WSM] Invalid number: " + sanitizeForEcho(args[1]));
+            sender.sendMessage("[WSM] Invalid number: " + WeatherCommands.sanitizeForEcho(args[1]));
             return true;
         }
-        if (seconds < 1 || seconds > MAX_SECONDS) {
+        int seconds = parsed.getAsInt();
+        if (!WeatherCommands.isValidSeconds(seconds)) {
             sender.sendMessage("[WSM] Seconds must be between 1 and " + MAX_SECONDS + ".");
             return true;
         }
@@ -330,25 +326,18 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             return true;
         }
 
-        int held = engine.setTimedWeather(weatherType, seconds * 20, allWorldsApplier);
-        int heldSeconds = held / 20;
+        int held = engine.setTimedWeather(weatherType, WeatherCommands.secondsToTicks(seconds),
+                                          allWorldsApplier);
+        int heldSeconds = held / WeatherCommands.TICKS_PER_SECOND;
 
-        sender.sendMessage("[WSM] Weather set to " + weatherType.getCommandName() + " for "
-            + heldSeconds + "s. Will revert to CLEAR after.");
+        sender.sendMessage(WeatherMessages.timedWeatherSet(weatherType, heldSeconds));
         getLogger().info("[WSM] Timed weather: " + weatherType + " for " + heldSeconds
             + "s (by " + sender.getName() + ").");
         return true;
     }
 
     private boolean handleTimedWeatherStatus(CommandSender sender) {
-        if (engine.isTimedWeatherActive()) {
-            int remaining = engine.getTimedWeatherTicksRemaining();
-            sender.sendMessage("[WSM] Timed weather: " + engine.getTimedWeatherType()
-                + " — " + WeatherEngine.formatTicks(remaining)
-                + " remaining (" + remaining + " ticks)");
-        } else {
-            sender.sendMessage("[WSM] No timed weather active. Normal cycling is running.");
-        }
+        sender.sendMessage(WeatherMessages.timedWeatherStatus(engine));
         return true;
     }
 
@@ -359,11 +348,7 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
         }
 
         if (engine.isTimedWeatherActive()) {
-            int remaining = engine.getTimedWeatherTicksRemaining();
-            sender.sendMessage("[WSM] Timed weather active: " + engine.getTimedWeatherType()
-                + "\n  Remaining: " + WeatherEngine.formatTicks(remaining)
-                + " (" + remaining + " ticks)"
-                + "\n  Normal cycling resumes after timer expires.");
+            sender.sendMessage(WeatherMessages.timedOverrideForecast(engine));
             return true;
         }
 
@@ -375,10 +360,7 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
 
         StringBuilder message = new StringBuilder("[WSM] Weather forecast:");
         for (TrackedWorld tw : worlds) {
-            int ticksLeft = engine.getTicksUntilNextChange(tw.key);
-            String forecast = ticksLeft > 0
-                ? WeatherEngine.formatTicks(ticksLeft) + " (" + ticksLeft + " ticks)"
-                : "imminent";
+            String forecast = WeatherMessages.nextChange(engine.getTicksUntilNextChange(tw.key));
             message.append("\n  ").append(tw.world.getName())
                    .append(" — next change in ~").append(forecast)
                    .append(", spawn biome influence: ")
@@ -413,27 +395,6 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             return List.of(DURATION_SUGGESTIONS);
         }
         return List.of();
-    }
-
-    /**
-     * Makes a user-supplied token safe to echo into a chat reply: drops the
-     * legacy section sign (which the client renders as a colour/format code) and
-     * any control characters, then truncates. Without this, a crafted argument
-     * could recolour or pad the plugin's own messages.
-     */
-    private static String sanitizeForEcho(String raw) {
-        if (raw == null || raw.isEmpty()) return "";
-        int limit = Math.min(raw.length(), MAX_ECHO_LENGTH);
-        StringBuilder out = new StringBuilder(limit + 1);
-        for (int i = 0; i < limit; i++) {
-            char c = raw.charAt(i);
-            // U+00A7 is the legacy formatting prefix; C0 controls and DEL can
-            // break message framing in the client.
-            if (c == '\u00a7' || c < ' ' || c == '\u007f') continue;
-            out.append(c);
-        }
-        if (raw.length() > limit) out.append("...");
-        return out.toString();
     }
 
     // ── Structure density boost ───────────────────────────────────────────
@@ -521,7 +482,7 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Targeted approach: reach the server's {@code STRUCTURE_SETS} registry and
+     * Targeted approach: reach the server's {@code STRUCTURE_SET} registry and
      * boost each set's placement directly. One pass for the whole server — the
      * registry is not per world.
      */
@@ -542,10 +503,15 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             Object server      = serverLevel.getClass().getMethod("getServer").invoke(serverLevel);
             Object registryAccess = server.getClass().getMethod("registryAccess").invoke(server);
 
-            Object structureSetsKey = registriesField("STRUCTURE_SETS");
+            // The constant is Registries.STRUCTURE_SET (singular). This used to ask
+            // for "STRUCTURE_SETS", which MC 26.1.2 does not have, so the lookup
+            // threw NoSuchFieldException and this whole method was dead code — the
+            // plugin always fell through to the reflective sweep.
+            Object structureSetsKey = registriesField("STRUCTURE_SET");
             Object registry = lookupRegistry(registryAccess, structureSetsKey);
             if (registry == null) {
-                log.fine("[WSM] Could not resolve the STRUCTURE_SETS registry.");
+                log.info("[WSM] Could not resolve the structure-set registry; "
+                    + "trying the reflective sweep instead.");
                 return 0;
             }
 
@@ -556,8 +522,11 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
                 }
             }
         } catch (Throwable t) {
-            log.fine("[WSM] Targeted registry approach unavailable: "
-                + t.getClass().getSimpleName() + ": " + t.getMessage());
+            // INFO, not FINE: at FINE this was invisible on a default server, which
+            // is how the wrong field name above went unnoticed.
+            log.info("[WSM] Targeted registry approach unavailable ("
+                + t.getClass().getSimpleName() + ": " + t.getMessage()
+                + "); trying the reflective sweep instead.");
         }
         return count;
     }
@@ -718,12 +687,8 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Shrinks one placement's spacing/separation.
-     * <p>
-     * The clamps only ever <em>reduce</em> a value. Applying the floors the other
-     * way round ({@code max(MIN_SPACING, scaled)}) raised spacing from 1 to 2 and
-     * separation from 0 to 1 on placements that were already at or below the
-     * floor — making those structures rarer, the opposite of the intent.
+     * Shrinks one placement's spacing/separation, using the same
+     * {@link StructureDensity} math as the Fabric and NeoForge mixins.
      *
      * @return 1 if anything changed, else 0
      */
@@ -732,15 +697,17 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             int spacing    = spacingField.getInt(placement);
             int separation = separationField.getInt(placement);
 
-            int newSpacing    = Math.min(spacing,    Math.max(MIN_SPACING,    (int) (spacing    * DENSITY_FACTOR)));
-            int newSeparation = Math.min(separation, Math.max(MIN_SEPARATION, (int) (separation * DENSITY_FACTOR)));
-            // Vanilla requires separation < spacing.
-            if (newSeparation >= newSpacing) newSeparation = Math.max(0, newSpacing - 1);
+            int newSpacing    = StructureDensity.boostedSpacing(spacing);
+            int newSeparation = StructureDensity.boostedSeparation(spacing, separation);
 
             if (newSpacing == spacing && newSeparation == separation) return 0;
 
-            spacingField.setInt(placement,    newSpacing);
+            // Separation first. It only ever shrinks, so the placement still
+            // satisfies vanilla's separation < spacing if the second write were
+            // to fail; written spacing-first, a failure in between could leave
+            // spacing <= separation, which crashes chunk generation.
             separationField.setInt(placement, newSeparation);
+            spacingField.setInt(placement,    newSpacing);
             return 1;
         } catch (Throwable t) {
             getLogger().fine("[WSM] Could not boost placement: " + t.getMessage());
