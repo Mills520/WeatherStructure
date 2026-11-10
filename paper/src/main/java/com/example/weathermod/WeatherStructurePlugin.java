@@ -482,7 +482,7 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
     }
 
     /**
-     * Targeted approach: reach the server's {@code STRUCTURE_SETS} registry and
+     * Targeted approach: reach the server's {@code STRUCTURE_SET} registry and
      * boost each set's placement directly. One pass for the whole server — the
      * registry is not per world.
      */
@@ -503,10 +503,15 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
             Object server      = serverLevel.getClass().getMethod("getServer").invoke(serverLevel);
             Object registryAccess = server.getClass().getMethod("registryAccess").invoke(server);
 
-            Object structureSetsKey = registriesField("STRUCTURE_SETS");
+            // The constant is Registries.STRUCTURE_SET (singular). This used to ask
+            // for "STRUCTURE_SETS", which MC 26.1.2 does not have, so the lookup
+            // threw NoSuchFieldException and this whole method was dead code — the
+            // plugin always fell through to the reflective sweep.
+            Object structureSetsKey = registriesField("STRUCTURE_SET");
             Object registry = lookupRegistry(registryAccess, structureSetsKey);
             if (registry == null) {
-                log.fine("[WSM] Could not resolve the STRUCTURE_SETS registry.");
+                log.info("[WSM] Could not resolve the structure-set registry; "
+                    + "trying the reflective sweep instead.");
                 return 0;
             }
 
@@ -517,8 +522,11 @@ public class WeatherStructurePlugin extends JavaPlugin implements Listener {
                 }
             }
         } catch (Throwable t) {
-            log.fine("[WSM] Targeted registry approach unavailable: "
-                + t.getClass().getSimpleName() + ": " + t.getMessage());
+            // INFO, not FINE: at FINE this was invisible on a default server, which
+            // is how the wrong field name above went unnoticed.
+            log.info("[WSM] Targeted registry approach unavailable ("
+                + t.getClass().getSimpleName() + ": " + t.getMessage()
+                + "); trying the reflective sweep instead.");
         }
         return count;
     }
